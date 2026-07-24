@@ -7,8 +7,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root {
     --primary: #1a3a52;
@@ -336,6 +334,11 @@
           <p id="cep-info" style="font-size:.8rem; margin-top:6px; color:var(--text-muted);"></p>
         </div>
         <div class="field">
+          <label>Endereço de entrega *</label>
+          <textarea id="c-end" rows="2" placeholder="Rua, número, bairro, complemento..."></textarea>
+          <p style="font-size:.72rem; color:var(--text-muted); margin-top:4px;">💡 Ao calcular o CEP, a rua e o bairro preenchem automaticamente — complete com o número.</p>
+        </div>
+        <div class="field">
           <label>Observações (opcional)</label>
           <textarea id="c-obs" rows="2" placeholder="Ex: forma de entrega, cor, tamanho..."></textarea>
         </div>
@@ -345,7 +348,7 @@
         <div class="sum-row total"><span>Total</span><span id="sum-total">R$ 0,00</span></div>
         <button class="btn-block btn-whats" onclick="enviarPedido()">💬 Enviar pedido pelo WhatsApp</button>
         <p style="font-size:.74rem; color:var(--text-muted); text-align:center; margin-top:8px; line-height:1.5;">
-          📎 O PDF do pedido será baixado automaticamente.<br>Anexe-o na conversa do WhatsApp junto com a mensagem!
+          A mensagem com todos os dados do pedido<br>será aberta no WhatsApp do vendedor. 😉
         </p>
         <button class="btn-block btn-ghost" onclick="limparCarrinho()">🗑 Limpar carrinho</button>
       </div>
@@ -804,6 +807,10 @@ async function calcularFrete() {
     const d = await r.json();
     if (d.erro) { info.textContent = '❌ CEP não encontrado.'; frete = null; renderCarrinho(); return; }
     cepDados = d;
+    const campoEnd = document.getElementById('c-end');
+    if (!campoEnd.value.trim() && (d.logradouro || d.bairro)) {
+      campoEnd.value = [d.logradouro, d.bairro].filter(Boolean).join(', ') + ', nº ';
+    }
     if (d.localidade === 'Macapá' && d.uf === 'AP') {
       frete = 0;
       info.innerHTML = `📍 ${d.localidade} - ${d.uf} — <strong style="color:var(--accent-dark)">FRETE GRÁTIS! 🎉</strong>`;
@@ -830,8 +837,10 @@ async function enviarPedido() {
   const nome = document.getElementById('c-nome').value.trim();
   const fone = document.getElementById('c-fone').value.trim();
   const obs = document.getElementById('c-obs').value.trim();
+  const endereco = document.getElementById('c-end').value.trim();
   if (!nome) return toast('⚠️ Digite seu nome!');
   if (frete === null) return toast('⚠️ Calcule o frete pelo CEP!');
+  if (!endereco) return toast('⚠️ Digite o endereço de entrega!');
 
   const subtotal = carrinho.reduce((s,i) => s + i.preco * i.qtd, 0);
   const total = subtotal + frete;
@@ -844,7 +853,7 @@ async function enviarPedido() {
     await db.collection('pedidos').add({
       codigo,
       cliente: {
-        nome, fone,
+        nome, fone, endereco,
         cep: document.getElementById('c-cep').value,
         cidade: cepDados?.localidade || '',
         uf: cepDados?.uf || ''
@@ -861,23 +870,19 @@ async function enviarPedido() {
     return toast('❌ Erro ao registrar o pedido. Tente novamente.');
   }
 
-  gerarPDFPedido(codigo, nome, fone, obs, subtotal, total, agora);
-
   let msg = `🛒 *Novo Pedido — ${config.nome || 'ZapStore'}*\n`;
   msg += `🧾 Código: *${codigo}*\n`;
   msg += `📅 Data: ${agora.toLocaleString('pt-BR')}\n`;
   msg += `👤 Cliente: ${nome}\n`;
   if (fone) msg += `📞 Telefone: ${fone}\n`;
   if (cepDados) msg += `📍 Entrega: ${cepDados.localidade}-${cepDados.uf} (CEP ${document.getElementById('c-cep').value})\n`;
+  msg += `🏠 Endereço: ${endereco}\n`;
   msg += `\n*Itens:*\n`;
   carrinho.forEach(i => { msg += `▪️ ${i.nome} x${i.qtd} — ${fmt(i.preco * i.qtd)}\n`; });
   msg += `\nSubtotal: ${fmt(subtotal)}`;
   msg += `\n🚚 Frete: ${frete === 0 ? 'GRÁTIS 🎉' : fmt(frete)}`;
   msg += `\n💰 *Total: ${fmt(total)}*`;
   if (obs) msg += `\n\n📝 Obs: ${obs}`;
-  msg += `\n\n📎 Segue em anexo o PDF do pedido.`;
-
-  alert('✅ Pedido ' + codigo + ' registrado!\n\n📄 O PDF foi baixado no seu aparelho.\n\n👉 O WhatsApp vai abrir agora: envie a mensagem e ANEXE o PDF baixado na conversa.');
 
   const foneLoja = (config.whats || '').replace(/\D/g, '');
   const url = foneLoja
@@ -894,48 +899,7 @@ async function enviarPedido() {
   toast('✅ Pedido ' + codigo + ' enviado!');
 }
 
-function gerarPDFPedido(codigo, nome, fone, obs, subtotal, total, agora) {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
 
-  doc.setFillColor(26, 58, 82);
-  doc.rect(0, 0, 210, 34, 'F');
-  doc.setTextColor(255).setFontSize(18).setFont(undefined, 'bold');
-  doc.text(config.nome || 'ZapStore', 14, 13);
-  doc.setFontSize(10).setFont(undefined, 'normal');
-  doc.text('Pedido: ' + codigo + '   |   Data: ' + agora.toLocaleString('pt-BR'), 14, 22);
-  doc.text('Status: Pendente de aprovação', 14, 28);
-
-  doc.setTextColor(40).setFontSize(11);
-  let y = 44;
-  doc.text('Cliente: ' + nome, 14, y); y += 6;
-  if (fone) { doc.text('Telefone: ' + fone, 14, y); y += 6; }
-  if (cepDados) { doc.text('Entrega: ' + cepDados.localidade + '-' + cepDados.uf + ' (CEP ' + document.getElementById('c-cep').value + ')', 14, y); y += 6; }
-  if (obs) {
-    const linhas = doc.splitTextToSize('Observações: ' + obs, 180);
-    doc.text(linhas, 14, y); y += linhas.length * 6;
-  }
-  y += 2;
-
-  doc.autoTable({
-    startY: y,
-    head: [['Produto', 'Qtd', 'Preço un.', 'Subtotal']],
-    body: carrinho.map(i => [i.nome, i.qtd, fmt(i.preco), fmt(i.preco * i.qtd)]),
-    headStyles: { fillColor: [26, 58, 82], fontSize: 10 },
-    bodyStyles: { fontSize: 9.5 },
-    columnStyles: { 1: { halign: 'center' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
-    foot: [
-      ['', '', 'Subtotal', fmt(subtotal)],
-      ['', '', 'Frete', frete === 0 ? 'GRÁTIS' : fmt(frete)],
-      ['', '', 'TOTAL', fmt(total)]
-    ],
-    footStyles: { fillColor: [240, 244, 248], textColor: [26, 58, 82], fontStyle: 'bold', fontSize: 10.5, halign: 'right' }
-  });
-
-  doc.setFontSize(9).setTextColor(120);
-  doc.text('Codigo do pedido: ' + codigo + ' — Apresente este documento ao vendedor.', 14, doc.internal.pageSize.height - 10);
-  doc.save('pedido-' + codigo + '.pdf');
-}
 
 /* ==================== ADMIN / AUTH ==================== */
 let unsubPedidos = null;
@@ -1007,6 +971,7 @@ function renderPedidos() {
         ${p.cliente?.fone ? ' · 📞 ' + p.cliente.fone : ''}
         ${p.cliente?.cidade ? ' · 📍 ' + p.cliente.cidade + '-' + p.cliente.uf + ' (CEP ' + p.cliente.cep + ')' : ''}
       </div>
+      ${p.cliente?.endereco ? `<div style="font-size:.85rem; color:var(--text-muted); margin:-4px 0 8px;">🏠 ${p.cliente.endereco}</div>` : ''}
       <div style="font-size:.86rem; border-top:1px dashed var(--border); padding-top:8px;">
         ${(p.itens || []).map(i => `<div style="display:flex; justify-content:space-between; padding:2px 0;"><span>▪️ ${i.nome} <strong>x${i.qtd}</strong></span><span>${fmt(i.preco * i.qtd)}</span></div>`).join('')}
       </div>
