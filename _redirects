@@ -1,2 +1,2 @@
-/* /index.html 200
-/api/* :splat 200
+/zap-store/frontend/index.html /index.html 200
+/(.*) /zap-store/frontend/index.html 200
