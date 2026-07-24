@@ -1,13 +1,12 @@
 {
   "version": 2,
+  "public": true,
+  "buildCommand": "echo 'static'",
+  "outputDirectory": ".",
   "rewrites": [
     {
-      "source": "/api/:path*",
-      "destination": "zap-store/backend/server.js"
-    },
-    {
       "source": "/(.*)",
-      "destination": "/index.html"
+      "destination": "/zap-store/frontend/index.html"
     }
   ]
 }
