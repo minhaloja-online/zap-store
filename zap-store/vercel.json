@@ -1,11 +1,7 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "zap-store/backend/server.js",
-      "use": "@vercel/node"
-    }
-  ],
+  "buildCommand": "echo 'Building static site'",
+  "outputDirectory": "zap-store/frontend",
   "routes": [
     {
       "src": "/api/(.*)",
@@ -13,13 +9,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "zap-store/frontend/index.html"
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "zap-store/frontend/index.html"
+      "dest": "/index.html"
     }
   ]
 }
