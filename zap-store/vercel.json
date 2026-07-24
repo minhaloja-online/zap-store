@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "zap-store/backend/server.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "zap-store/frontend",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "zap-store/backend/server.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "zap-store/frontend/index.html"
+    }
+  ]
+}
