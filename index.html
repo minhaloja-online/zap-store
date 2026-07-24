@@ -332,24 +332,19 @@
         </div>
         <div class="field">
           <label>CEP para entrega *</label>
-          <div style="display:flex; gap:8px;">
-            <input type="text" id="c-cep" placeholder="00000-000" maxlength="9" oninput="mascaraCEP(this)" style="flex:1">
-            <button class="btn-clear" onclick="calcularFrete()">Calcular</button>
-          </div>
+          <input type="text" id="c-cep" placeholder="00000-000" maxlength="9" oninput="mascaraCEP(this)">
           <p id="cep-info" style="font-size:.8rem; margin-top:6px; color:var(--text-muted);"></p>
         </div>
         <div class="field">
           <label>Endereço de entrega *</label>
           <textarea id="c-end" rows="2" placeholder="Rua, número, bairro, complemento..."></textarea>
-          <p style="font-size:.72rem; color:var(--text-muted); margin-top:4px;">💡 Ao calcular o CEP, a rua e o bairro preenchem automaticamente — complete com o número.</p>
+          <p style="font-size:.72rem; color:var(--text-muted); margin-top:4px;">💡 Digite o CEP completo que a rua e o bairro preenchem automaticamente — complete com o número.</p>
         </div>
         <div class="field">
           <label>Observações (opcional)</label>
           <textarea id="c-obs" rows="2" placeholder="Ex: forma de entrega, cor, tamanho..."></textarea>
         </div>
         <div class="sum-row"><span>Itens</span><span id="sum-itens">0</span></div>
-        <div class="sum-row"><span>Subtotal</span><span id="sum-sub">R$ 0,00</span></div>
-        <div class="sum-row"><span>Frete</span><span id="sum-frete">Calcule pelo CEP</span></div>
         <div class="sum-row total"><span>Total</span><span id="sum-total">R$ 0,00</span></div>
         <button class="btn-block btn-whats" onclick="enviarPedido(this)">💬 Enviar pedido pelo WhatsApp</button>
         <p style="font-size:.74rem; color:var(--text-muted); text-align:center; margin-top:8px; line-height:1.5;">
@@ -772,9 +767,7 @@ function renderCarrinho() {
   const totalItens = carrinho.reduce((s,i) => s + i.qtd, 0);
   const subtotal = carrinho.reduce((s,i) => s + i.preco * i.qtd, 0);
   document.getElementById('sum-itens').textContent = totalItens;
-  document.getElementById('sum-sub').textContent = fmt(subtotal);
-  document.getElementById('sum-frete').textContent = frete === null ? 'Calcule pelo CEP' : (frete === 0 ? 'GRÁTIS 🎉' : fmt(frete));
-  document.getElementById('sum-total').textContent = fmt(subtotal + (frete || 0));
+  document.getElementById('sum-total').textContent = fmt(subtotal);
 }
 
 function cartQtd(idx, delta) {
@@ -787,52 +780,43 @@ function limparCarrinho() {
   if (confirm('Limpar todo o carrinho?')) { carrinho = []; salvarCarrinho(); }
 }
 
-/* ==================== FRETE ==================== */
-let frete = null;
+/* ==================== CEP (apenas para preencher o endereço) ==================== */
 let cepDados = null;
-
-const TABELA_FRETE = {
-  AP: 25.00,
-  PA: 35.00, AM: 45.00, TO: 45.00, RR: 50.00, RO: 50.00, AC: 55.00,
-  MA: 50.00, PI: 55.00, CE: 55.00, RN: 60.00, PB: 60.00, PE: 60.00, AL: 60.00, SE: 60.00, BA: 60.00,
-  MT: 55.00, MS: 60.00, GO: 55.00, DF: 55.00,
-  SP: 65.00, RJ: 65.00, MG: 65.00, ES: 65.00,
-  PR: 70.00, SC: 70.00, RS: 70.00
-};
+let endAutoPrefixo = '';
+let cepTimer = null;
 
 function mascaraCEP(el) {
   let v = el.value.replace(/\D/g, '').slice(0, 8);
   if (v.length > 5) v = v.slice(0, 5) + '-' + v.slice(5);
   el.value = v;
-  frete = null; cepDados = null;
+  cepDados = null;
   document.getElementById('cep-info').textContent = '';
-  renderCarrinho();
+  clearTimeout(cepTimer);
+  if (v.replace('-', '').length === 8) {
+    cepTimer = setTimeout(buscarCEP, 400);
+  }
 }
 
-async function calcularFrete() {
+async function buscarCEP() {
   const cep = document.getElementById('c-cep').value.replace(/\D/g, '');
   const info = document.getElementById('cep-info');
-  if (cep.length !== 8) { info.textContent = '⚠️ Digite um CEP válido (8 dígitos).'; return; }
+  if (cep.length !== 8) return;
   info.textContent = '⏳ Consultando CEP...';
   try {
     const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
     const d = await r.json();
-    if (d.erro) { info.textContent = '❌ CEP não encontrado.'; frete = null; renderCarrinho(); return; }
+    if (d.erro) { info.textContent = '❌ CEP não encontrado.'; cepDados = null; return; }
     cepDados = d;
     const campoEnd = document.getElementById('c-end');
-    if (!campoEnd.value.trim() && (d.logradouro || d.bairro)) {
-      campoEnd.value = [d.logradouro, d.bairro].filter(Boolean).join(', ') + ', nº ';
+    const novoPrefixo = (d.logradouro || d.bairro) ? [d.logradouro, d.bairro].filter(Boolean).join(', ') + ', nº ' : '';
+    // Atualiza o endereço se estiver vazio OU se foi preenchido automaticamente pelo CEP anterior
+    if (!campoEnd.value.trim() || (endAutoPrefixo && campoEnd.value.startsWith(endAutoPrefixo))) {
+      campoEnd.value = novoPrefixo;
     }
-    if (d.localidade === 'Macapá' && d.uf === 'AP') {
-      frete = 0;
-      info.innerHTML = `📍 ${d.localidade} - ${d.uf} — <strong style="color:var(--accent-dark)">FRETE GRÁTIS! 🎉</strong>`;
-    } else {
-      frete = TABELA_FRETE[d.uf] ?? 60;
-      info.textContent = `📍 ${d.localidade} - ${d.uf} — Frete: ${fmt(frete)}`;
-    }
-    renderCarrinho();
+    endAutoPrefixo = novoPrefixo;
+    info.textContent = `📍 ${d.localidade} - ${d.uf}`;
   } catch (e) {
-    info.textContent = '❌ Erro ao consultar o CEP. Verifique sua internet e tente novamente.';
+    info.textContent = '❌ Erro ao consultar o CEP. Verifique sua internet.';
   }
 }
 
@@ -851,11 +835,9 @@ async function enviarPedido(btn) {
   const obs = document.getElementById('c-obs').value.trim();
   const endereco = document.getElementById('c-end').value.trim();
   if (!nome) return toast('⚠️ Digite seu nome!');
-  if (frete === null) return toast('⚠️ Calcule o frete pelo CEP!');
   if (!endereco) return toast('⚠️ Digite o endereço de entrega!');
 
-  const subtotal = carrinho.reduce((s,i) => s + i.preco * i.qtd, 0);
-  const total = subtotal + frete;
+  const total = carrinho.reduce((s,i) => s + i.preco * i.qtd, 0);
   const codigo = gerarCodigo();
   const agora = new Date();
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Registrando pedido...'; }
@@ -879,7 +861,7 @@ async function enviarPedido(btn) {
       },
       obs,
       itens: carrinho.map(i => ({ id: i.id, nome: i.nome, preco: i.preco, qtd: i.qtd })),
-      subtotal, frete, total,
+      total,
       status: 'pendente_aprovacao',
       criadoEm: firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -899,8 +881,6 @@ async function enviarPedido(btn) {
   msg += `🏠 Endereço: ${endereco}\n`;
   msg += `\n*Itens:*\n`;
   carrinho.forEach(i => { msg += `▪️ ${i.nome} x${i.qtd} — ${fmt(i.preco * i.qtd)}\n`; });
-  msg += `\nSubtotal: ${fmt(subtotal)}`;
-  msg += `\n🚚 Frete: ${frete === 0 ? 'GRÁTIS 🎉' : fmt(frete)}`;
   msg += `\n💰 *Total: ${fmt(total)}*`;
   if (obs) msg += `\n\n📝 Obs: ${obs}`;
 
@@ -916,7 +896,7 @@ async function enviarPedido(btn) {
   }
 
   carrinho = [];
-  frete = null; cepDados = null;
+  cepDados = null;
   document.getElementById('cep-info').textContent = '';
   document.getElementById('c-cep').value = '';
   salvarCarrinho();
@@ -1005,7 +985,6 @@ function renderPedidos() {
       ${p.obs ? `<div style="font-size:.8rem; color:var(--text-muted); margin-top:6px;">📝 ${p.obs}</div>` : ''}
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; flex-wrap:wrap; gap:8px;">
         <div style="font-size:.85rem; color:var(--text-muted)">
-          Subtotal ${fmt(p.subtotal || 0)} · Frete ${p.frete === 0 ? 'GRÁTIS' : fmt(p.frete || 0)} ·
           <strong style="color:var(--primary); font-size:1rem;">Total ${fmt(p.total || 0)}</strong>
         </div>
         <div>${acoes}</div>
