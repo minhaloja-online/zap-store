@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "public": false,
+  "buildCommand": "echo 'static build'",
+  "outputDirectory": "zap-store/frontend",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "zap-store/backend/server.js"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
+    }
+  ]
+}
