@@ -472,6 +472,10 @@
 
       <!-- ===== ABA PEDIDOS ===== -->
       <div id="aview-pedidos" style="display:none">
+        <div class="field" style="max-width:340px; margin-bottom:.8rem;">
+          <label>🔍 Buscar por código do pedido</label>
+          <input type="text" id="f-codigo" placeholder="Ex: ZP-260724-A8X2" oninput="renderPedidos()" style="text-transform:uppercase;">
+        </div>
         <div class="filtros-ped">
           <button class="admin-tab fped active" data-f="todos" onclick="filtrarPedidos('todos')">Todos</button>
           <button class="admin-tab fped" data-f="pendente_aprovacao" onclick="filtrarPedidos('pendente_aprovacao')">⏳ Pend. aprovação</button>
@@ -944,7 +948,9 @@ function filtrarPedidos(f) {
 }
 
 function renderPedidos() {
-  const lista = filtroPed === 'todos' ? pedidos : pedidos.filter(p => p.status === filtroPed);
+  const busca = (document.getElementById('f-codigo')?.value || '').trim().toUpperCase();
+  let lista = filtroPed === 'todos' ? pedidos : pedidos.filter(p => p.status === filtroPed);
+  if (busca) lista = lista.filter(p => (p.codigo || '').toUpperCase().includes(busca));
   const cont = document.getElementById('pedidos-lista');
   document.getElementById('pedidos-empty').style.display = lista.length ? 'none' : 'block';
   cont.innerHTML = lista.map(p => {
