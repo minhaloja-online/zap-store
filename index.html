@@ -216,6 +216,9 @@
   .st-pendente_envio { background:#e3efff; color:#1a56b0; }
   .st-enviado { background:#e8f7ee; color:#1d7a46; }
   .st-cancelado { background:#fdecea; color:#b23b2e; }
+  .imp-ok { background:#e8f7ee; color:#1d7a46; }
+  .imp-erro { background:#fdecea; color:#b23b2e; }
+  .imp-badge { font-size:.7rem; font-weight:800; padding:3px 9px; border-radius:20px; white-space:nowrap; }
   .msg { padding: 0.7rem 0.9rem; border-radius: 8px; font-size: 0.88rem; margin-bottom: 0.9rem; display: none; }
   .msg.ok { background: #e8f7ee; color: #1d7a46; border: 1px solid #b9e5cc; display: block; }
   .msg.err { background: #fdecea; color: #b23b2e; border: 1px solid #f5c6c0; display: block; }
@@ -401,6 +404,32 @@
       </div>
 
       <div id="aview-produtos">
+      <div class="panel" style="margin-bottom:1.2rem;">
+        <h3>📥 Importar Produtos em Massa</h3>
+        <p style="font-size:.85rem; color:var(--text-muted); margin-bottom:1rem;">
+          Envie uma planilha (.xlsx ou .csv) com os produtos. Colunas aceitas: <code>nome</code>, <code>descricao</code>, <code>preco</code>, <code>precoAtacado</code>, <code>estoque</code>, <code>categoria</code>.
+        </p>
+        <div class="img-drop" onclick="document.getElementById('import-file').click()">
+          <span>📄 Clique para selecionar a planilha (.xlsx ou .csv)</span>
+        </div>
+        <input type="file" id="import-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="lerPlanilhaImportacao(this)">
+        <div id="import-preview" style="display:none; margin-top:1rem;">
+          <p id="import-resumo" style="font-size:.88rem; font-weight:700; margin-bottom:.6rem;"></p>
+          <div style="overflow-x:auto; max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
+            <table class="admin-table" style="margin:0;">
+              <thead>
+                <tr><th>#</th><th>Nome</th><th>Preço</th><th>Atacado</th><th>Estoque</th><th>Categoria</th><th>Status</th></tr>
+              </thead>
+              <tbody id="import-tbody"></tbody>
+            </table>
+          </div>
+          <div style="display:flex; gap:10px; margin-top:1rem; flex-wrap:wrap;">
+            <button class="btn-block btn-pdf" id="btn-confirmar-import" onclick="confirmarImportacao()" style="flex:1; min-width:200px; margin-top:0;">✔ Confirmar Importação</button>
+            <button class="btn-clear" onclick="cancelarImportacao()">✕ Cancelar</button>
+          </div>
+        </div>
+      </div>
+
       <div class="admin-layout">
         <div>
           <div class="panel" style="margin-bottom:1.2rem;">
@@ -1573,6 +1602,179 @@ function cancelarEdicao() {
 function excluirProduto(id) {
   if (!confirm('Excluir este produto?')) return;
   db.collection('produtos').doc(id).delete().then(() => toast('🗑 Produto excluído'));
+}
+
+/* ==================== IMPORTAÇÃO EM MASSA (PLANILHA) ==================== */
+let importLinhas = []; // linhas validadas, prontas para importar
+
+// Reconhece variações comuns de nome de coluna (maiúsculas, acentos, sinônimos)
+const ALIAS_COLUNAS = {
+  nome: ['nome', 'produto', 'nome do produto'],
+  descricao: ['descricao', 'descrição', 'desc'],
+  preco: ['preco', 'preço', 'valor', 'preco varejo', 'preço varejo', 'varejo'],
+  precoAtacado: ['precoatacado', 'preço atacado', 'preco atacado', 'atacado'],
+  estoque: ['estoque', 'qtd', 'quantidade', 'estoque atual'],
+  categoria: ['categoria', 'categoria do produto']
+};
+
+function normalizarChave(s) {
+  return String(s || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // remove acentos
+}
+
+function mapearLinha(linhaObj) {
+  // Constrói um mapa normalizado da linha original (chave sem acento/minúscula -> valor)
+  const mapa = {};
+  Object.keys(linhaObj).forEach(k => { mapa[normalizarChave(k)] = linhaObj[k]; });
+
+  const resultado = {};
+  Object.keys(ALIAS_COLUNAS).forEach(campo => {
+    const aliases = ALIAS_COLUNAS[campo].map(normalizarChave);
+    let valor;
+    for (const alias of aliases) {
+      if (mapa[alias] !== undefined && mapa[alias] !== '') { valor = mapa[alias]; break; }
+    }
+    resultado[campo] = valor;
+  });
+  return resultado;
+}
+
+function parseNumeroBR(v) {
+  if (v === undefined || v === null || v === '') return null;
+  if (typeof v === 'number') return v;
+  const limpo = String(v).trim().replace(/[^\d,.\-]/g, '').replace(',', '.');
+  const n = parseFloat(limpo);
+  return isNaN(n) ? null : n;
+}
+
+function lerPlanilhaImportacao(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const linhasRaw = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      if (!linhasRaw.length) {
+        toast('⚠️ A planilha está vazia.');
+        input.value = '';
+        return;
+      }
+
+      importLinhas = linhasRaw.map((linhaObj, idx) => {
+        const l = mapearLinha(linhaObj);
+        const nome = String(l.nome || '').trim();
+        const descricao = String(l.descricao || '').trim();
+        const preco = parseNumeroBR(l.preco);
+        const precoAtacado = (l.precoAtacado !== undefined && l.precoAtacado !== '') ? parseNumeroBR(l.precoAtacado) : null;
+        const estoque = l.estoque !== undefined && l.estoque !== '' ? (parseInt(parseNumeroBR(l.estoque)) || 0) : 0;
+        const categoria = String(l.categoria || '').trim();
+
+        const erros = [];
+        if (!nome) erros.push('nome vazio');
+        if (preco === null) erros.push('preço inválido');
+        if (!categoria) erros.push('categoria vazia');
+        if (precoAtacado !== null && (isNaN(precoAtacado) || (preco !== null && precoAtacado >= preco))) erros.push('atacado deve ser menor que o varejo');
+
+        return {
+          linha: idx + 2, // +2 pois linha 1 é cabeçalho na planilha original
+          nome, descricao, preco, precoAtacado, estoque, categoria,
+          valido: erros.length === 0,
+          erros
+        };
+      });
+
+      renderPreviewImportacao();
+      input.value = '';
+    } catch (err) {
+      console.error(err);
+      toast('❌ Não foi possível ler o arquivo. Verifique o formato (.xlsx ou .csv).');
+      input.value = '';
+    }
+  };
+  reader.readAsBinaryString(file);
+}
+
+function renderPreviewImportacao() {
+  const validas = importLinhas.filter(l => l.valido).length;
+  const invalidas = importLinhas.length - validas;
+
+  document.getElementById('import-resumo').innerHTML =
+    `${importLinhas.length} linha(s) lida(s) — <span style="color:var(--accent-dark)">${validas} pronta(s) para importar</span>` +
+    (invalidas ? ` · <span style="color:var(--danger)">${invalidas} com erro (serão ignoradas)</span>` : '');
+
+  document.getElementById('import-tbody').innerHTML = importLinhas.map(l => `
+    <tr>
+      <td>${l.linha}</td>
+      <td>${l.nome || '<em style="color:var(--text-muted)">—</em>'}</td>
+      <td>${l.preco !== null ? fmt(l.preco) : '—'}</td>
+      <td>${l.precoAtacado !== null && l.precoAtacado !== undefined ? fmt(l.precoAtacado) : '—'}</td>
+      <td>${l.estoque}</td>
+      <td>${l.categoria || '—'}</td>
+      <td>${l.valido
+        ? `<span class="imp-badge imp-ok">✔ OK</span>`
+        : `<span class="imp-badge imp-erro" title="${l.erros.join(', ')}">✕ ${l.erros[0]}</span>`
+      }</td>
+    </tr>`).join('');
+
+  document.getElementById('btn-confirmar-import').disabled = validas === 0;
+  document.getElementById('btn-confirmar-import').textContent = validas
+    ? `✔ Confirmar Importação (${validas} produto${validas > 1 ? 's' : ''})`
+    : '✔ Confirmar Importação';
+  document.getElementById('import-preview').style.display = 'block';
+}
+
+async function confirmarImportacao() {
+  const validas = importLinhas.filter(l => l.valido);
+  if (!validas.length) return;
+  if (!confirm(`Importar ${validas.length} produto(s) para o catálogo?`)) return;
+
+  const btn = document.getElementById('btn-confirmar-import');
+  btn.disabled = true;
+  btn.textContent = '⏳ Importando...';
+
+  try {
+    // Firestore permite até 500 operações por lote — divide em blocos de 400 por segurança
+    const blocos = [];
+    for (let i = 0; i < validas.length; i += 400) blocos.push(validas.slice(i, i + 400));
+
+    for (const bloco of blocos) {
+      const batch = db.batch();
+      bloco.forEach(l => {
+        const ref = db.collection('produtos').doc();
+        batch.set(ref, {
+          nome: l.nome,
+          descricao: l.descricao,
+          preco: l.preco,
+          precoAtacado: l.precoAtacado,
+          estoque: l.estoque,
+          categoria: l.categoria,
+          imagens: [], capa: 0, imagem: '',
+          criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+          atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      });
+      await batch.commit();
+    }
+
+    toast(`✅ ${validas.length} produto(s) importado(s) com sucesso!`);
+    cancelarImportacao();
+  } catch (e) {
+    console.error(e);
+    toast('❌ Erro ao importar: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '✔ Confirmar Importação';
+  }
+}
+
+function cancelarImportacao() {
+  importLinhas = [];
+  document.getElementById('import-preview').style.display = 'none';
+  document.getElementById('import-tbody').innerHTML = '';
+  document.getElementById('import-file').value = '';
 }
 
 function renderAdminTable() {
