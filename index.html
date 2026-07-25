@@ -10,6 +10,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --primary: #0d2b6b;
@@ -491,7 +492,8 @@
             <input type="date" id="f-data-ate" onchange="renderPedidos()">
           </div>
           <button class="btn-clear" onclick="limparFiltrosPedidos()">✕ Limpar</button>
-          <button class="btn-clear" style="background:var(--primary); color:#fff; border-color:var(--primary);" onclick="exportarRelatorioPedidos()">📊 Exportar relatório</button>
+          <button class="btn-clear" style="background:var(--primary); color:#fff; border-color:var(--primary);" onclick="exportarRelatorioPDF()">📄 Relatório PDF</button>
+          <button class="btn-clear" style="background:var(--accent); color:#fff; border-color:var(--accent);" onclick="exportarRelatorioExcel()">📊 Relatório Excel</button>
         </div>
         <div class="filtros-ped">
           <button class="admin-tab fped active" data-f="todos" onclick="filtrarPedidos('todos')">Todos</button>
@@ -1207,10 +1209,11 @@ async function exportarPedidoPDF(id) {
   toast('📄 PDF do pedido gerado!');
 }
 
-/* ==================== EXPORTAR PDF — RELATÓRIO DO PERÍODO ==================== */
-function exportarRelatorioPedidos() {
+/* ==================== EXPORTAR PDF — RELATÓRIO DETALHADO POR PRODUTO ==================== */
+function exportarRelatorioPDF() {
   const lista = pedidosFiltrados();
   if (!lista.length) return toast('⚠️ Nenhum pedido para exportar com esses filtros.');
+  toast('⏳ Gerando relatório em PDF...');
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
@@ -1222,40 +1225,68 @@ function exportarRelatorioPedidos() {
     ? 'Período: ' + (dataDe ? formatarDataISO(dataDe) : 'início') + ' até ' + (dataAte ? formatarDataISO(dataAte) : 'hoje')
     : 'Período: todos os registros';
 
-  cabecalhoPDF(doc, 'Relatório de Pedidos');
+  cabecalhoPDF(doc, 'Relatório Detalhado de Pedidos');
 
   doc.setFontSize(10).setTextColor(70).setFont(undefined, 'normal');
   doc.text(periodoTxt, 14, 39);
   doc.text('Filtro de status: ' + statusTxt, 14, 45);
   doc.text('Gerado em: ' + new Date().toLocaleString('pt-BR'), 14, 51);
 
+  // Monta uma linha por PRODUTO (não por pedido) — detalhado
+  const linhas = [];
+  lista.forEach(p => {
+    const dataStr = p.criadoEm?.toDate ? p.criadoEm.toDate().toLocaleDateString('pt-BR') : '—';
+    (p.itens || []).forEach(item => {
+      linhas.push({
+        codigo: p.codigo, data: dataStr, cliente: p.cliente?.nome || '-',
+        status: (STATUS_LABEL[p.status] || p.status).replace(/^[^\w]+/, ''),
+        itemId: item.id, nome: item.nome, qtd: item.qtd, preco: item.preco, subtotal: item.preco * item.qtd
+      });
+    });
+  });
+
+  const imgSize = 11; // bem pequena, minimalista
   const totalGeral = lista.reduce((s,p) => s + (p.total || 0), 0);
-  const porStatus = {};
-  lista.forEach(p => { porStatus[p.status] = (porStatus[p.status] || 0) + 1; });
 
   doc.autoTable({
-    startY: 58,
-    head: [['Código', 'Data', 'Cliente', 'Cidade/UF', 'Status', 'Total']],
-    body: lista.map(p => [
-      p.codigo,
-      p.criadoEm?.toDate ? p.criadoEm.toDate().toLocaleDateString('pt-BR') : '—',
-      p.cliente?.nome || '-',
-      p.cliente?.cidade ? p.cliente.cidade + '-' + p.cliente.uf : '-',
-      (STATUS_LABEL[p.status] || p.status).replace(/^[^\w]+/, ''),
-      fmt(p.total || 0)
-    ]),
-    headStyles: { fillColor: [13, 43, 107], fontSize: 9 },
-    bodyStyles: { fontSize: 8.5 },
-    columnStyles: { 5: { halign: 'right' } },
-    foot: [['', '', '', '', 'TOTAL GERAL', fmt(totalGeral)]],
-    footStyles: { fillColor: [240, 244, 248], textColor: [13, 43, 107], fontStyle: 'bold', fontSize: 9.5, halign: 'right' }
+    startY: 57,
+    head: [['', 'Pedido', 'Data', 'Cliente', 'Produto', 'Qtd', 'Preço un.', 'Subtotal', 'Status']],
+    body: linhas.map(l => ['', l.codigo, l.data, l.cliente, l.nome, l.qtd, fmt(l.preco), fmt(l.subtotal), l.status]),
+    headStyles: { fillColor: [13, 43, 107], fontSize: 7.8 },
+    bodyStyles: { fontSize: 7.6, minCellHeight: imgSize + 4, valign: 'middle' },
+    columnStyles: {
+      0: { cellWidth: imgSize + 4 },
+      1: { cellWidth: 24 }, 2: { cellWidth: 16 }, 5: { halign: 'center', cellWidth: 10 },
+      6: { halign: 'right' }, 7: { halign: 'right' }
+    },
+    foot: [['', '', '', '', '', '', '', 'TOTAL GERAL', fmt(totalGeral)]],
+    footStyles: { fillColor: [240, 244, 248], textColor: [13, 43, 107], fontStyle: 'bold', fontSize: 8.5, halign: 'right' },
+    didDrawCell: (data) => {
+      if (data.section === 'body' && data.column.index === 0) {
+        const linha = linhas[data.row.index];
+        const prod = produtos.find(pr => pr.id === linha.itemId);
+        const img = prod ? getCapa(prod) : '';
+        if (img) {
+          try {
+            const x = data.cell.x + 2;
+            const y = data.cell.y + (data.cell.height - imgSize) / 2;
+            doc.addImage(img, 'JPEG', x, y, imgSize, imgSize);
+          } catch (e) {}
+        }
+      }
+    }
   });
 
   let y = doc.lastAutoTable.finalY + 10;
+  if (y > 265) { doc.addPage(); y = 20; }
   doc.setFontSize(10).setTextColor(40).setFont(undefined, 'bold');
-  doc.text('Resumo por status', 14, y);
+  doc.text('Resumo', 14, y);
   y += 6;
   doc.setFont(undefined, 'normal').setFontSize(9);
+  doc.text('• Total de pedidos: ' + lista.length, 16, y); y += 5.5;
+  doc.text('• Total de itens vendidos: ' + linhas.reduce((s,l) => s + l.qtd, 0), 16, y); y += 5.5;
+  const porStatus = {};
+  lista.forEach(p => { porStatus[p.status] = (porStatus[p.status] || 0) + 1; });
   Object.entries(porStatus).forEach(([st, qtd]) => {
     doc.text('• ' + (STATUS_LABEL[st] || st).replace(/^[^\w]+/, '') + ': ' + qtd + ' pedido' + (qtd > 1 ? 's' : ''), 16, y);
     y += 5.5;
@@ -1265,7 +1296,87 @@ function exportarRelatorioPedidos() {
   doc.text('Relatório gerado automaticamente — ' + (config.nome || 'ZAP STORE'), 14, doc.internal.pageSize.height - 10);
 
   doc.save('relatorio-pedidos-' + new Date().toISOString().slice(0,10) + '.pdf');
-  toast('📊 Relatório exportado!');
+  toast('📄 Relatório PDF exportado!');
+}
+
+/* ==================== EXPORTAR EXCEL — RELATÓRIO COMPLETO ==================== */
+function exportarRelatorioExcel() {
+  const lista = pedidosFiltrados();
+  if (!lista.length) return toast('⚠️ Nenhum pedido para exportar com esses filtros.');
+  toast('⏳ Gerando planilha Excel...');
+
+  // Aba 1: uma linha por ITEM/PRODUTO (bem detalhada)
+  const linhasItens = [];
+  lista.forEach(p => {
+    const dataObj = p.criadoEm?.toDate ? p.criadoEm.toDate() : null;
+    (p.itens || []).forEach(item => {
+      const prod = produtos.find(pr => pr.id === item.id);
+      linhasItens.push({
+        'Código do Pedido': p.codigo,
+        'Data': dataObj ? dataObj.toLocaleDateString('pt-BR') : '',
+        'Hora': dataObj ? dataObj.toLocaleTimeString('pt-BR') : '',
+        'Status': (STATUS_LABEL[p.status] || p.status).replace(/^[^\w]+/, ''),
+        'Cliente': p.cliente?.nome || '',
+        'Telefone': p.cliente?.fone || '',
+        'CEP': p.cliente?.cep || '',
+        'Cidade': p.cliente?.cidade || '',
+        'UF': p.cliente?.uf || '',
+        'Endereço': p.cliente?.endereco || '',
+        'Produto': item.nome,
+        'Categoria': prod?.categoria || '',
+        'Quantidade': item.qtd,
+        'Preço Unitário (R$)': item.preco,
+        'Subtotal do Item (R$)': +(item.preco * item.qtd).toFixed(2),
+        'Total do Pedido (R$)': p.total || 0,
+        'Observações': p.obs || ''
+      });
+    });
+  });
+
+  // Aba 2: um resumo por PEDIDO (visão macro)
+  const linhasPedidos = lista.map(p => {
+    const dataObj = p.criadoEm?.toDate ? p.criadoEm.toDate() : null;
+    const aprovadoEm = p.aprovadoEm?.toDate ? p.aprovadoEm.toDate().toLocaleString('pt-BR') : '';
+    const enviadoEm = p.enviadoEm?.toDate ? p.enviadoEm.toDate().toLocaleString('pt-BR') : '';
+    const canceladoEm = p.canceladoEm?.toDate ? p.canceladoEm.toDate().toLocaleString('pt-BR') : '';
+    return {
+      'Código': p.codigo,
+      'Data do Pedido': dataObj ? dataObj.toLocaleString('pt-BR') : '',
+      'Status': (STATUS_LABEL[p.status] || p.status).replace(/^[^\w]+/, ''),
+      'Cliente': p.cliente?.nome || '',
+      'Telefone': p.cliente?.fone || '',
+      'CEP': p.cliente?.cep || '',
+      'Cidade': p.cliente?.cidade || '',
+      'UF': p.cliente?.uf || '',
+      'Endereço': p.cliente?.endereco || '',
+      'Qtd. de Itens Distintos': (p.itens || []).length,
+      'Qtd. Total de Peças': (p.itens || []).reduce((s,i) => s + i.qtd, 0),
+      'Total do Pedido (R$)': p.total || 0,
+      'Observações': p.obs || '',
+      'Aprovado em': aprovadoEm,
+      'Enviado em': enviadoEm,
+      'Cancelado em': canceladoEm
+    };
+  });
+
+  const wb = XLSX.utils.book_new();
+
+  const wsPedidos = XLSX.utils.json_to_sheet(linhasPedidos);
+  wsPedidos['!cols'] = [
+    {wch:16},{wch:18},{wch:20},{wch:22},{wch:15},{wch:11},{wch:16},{wch:6},
+    {wch:30},{wch:12},{wch:12},{wch:16},{wch:28},{wch:18},{wch:18},{wch:18}
+  ];
+  XLSX.utils.book_append_sheet(wb, wsPedidos, 'Pedidos (Resumo)');
+
+  const wsItens = XLSX.utils.json_to_sheet(linhasItens);
+  wsItens['!cols'] = [
+    {wch:16},{wch:11},{wch:9},{wch:20},{wch:22},{wch:15},{wch:11},{wch:16},{wch:6},
+    {wch:30},{wch:26},{wch:15},{wch:11},{wch:16},{wch:18},{wch:16},{wch:28}
+  ];
+  XLSX.utils.book_append_sheet(wb, wsItens, 'Itens Detalhados');
+
+  XLSX.writeFile(wb, 'relatorio-pedidos-' + new Date().toISOString().slice(0,10) + '.xlsx');
+  toast('📊 Relatório Excel exportado!');
 }
 
 function formatarDataISO(iso) {
