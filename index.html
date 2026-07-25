@@ -111,6 +111,7 @@
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .product-price { font-size: 1.35rem; font-weight: 800; color: var(--primary); margin-bottom: 10px; }
   .product-price small { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
+  .atacado-tag { display:inline-flex; align-items:center; gap:4px; background:#fff4e0; color:#a35c00; font-size:.72rem; font-weight:800; padding:3px 9px; border-radius:20px; margin-top:-4px; margin-bottom:10px; }
   .qty-row { display: flex; gap: 8px; }
   .qty-box { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
   .qty-box button { border: none; background: #f1f4f8; width: 32px; height: 38px; font-size: 1.1rem; cursor: pointer; font-weight: 700; color: var(--primary); }
@@ -416,13 +417,20 @@
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
               <div class="field">
-                <label>Preço (R$) *</label>
+                <label>Preço Varejo (R$) *</label>
                 <input type="number" id="p-preco" step="0.01" min="0" placeholder="0,00">
               </div>
               <div class="field">
-                <label>Estoque</label>
-                <input type="number" id="p-estoque" min="0" placeholder="0">
+                <label>Preço Atacado (R$)</label>
+                <input type="number" id="p-preco-atacado" step="0.01" min="0" placeholder="0,00">
               </div>
+            </div>
+            <p style="font-size:.76rem; color:var(--text-muted); margin:-8px 0 12px;">
+              💡 O preço de atacado é aplicado automaticamente quando o cliente compra <strong>3 unidades ou mais</strong> do mesmo produto. Deixe em branco se não trabalhar com atacado.
+            </p>
+            <div class="field">
+              <label>Estoque</label>
+              <input type="number" id="p-estoque" min="0" placeholder="0">
             </div>
             <div class="field">
               <label>Categoria *</label>
@@ -464,7 +472,7 @@
           <div style="overflow-x:auto;">
             <table class="admin-table">
               <thead>
-                <tr><th></th><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Ações</th></tr>
+                <tr><th></th><th>Produto</th><th>Categoria</th><th>Varejo</th><th>Atacado (3+)</th><th>Estoque</th><th>Ações</th></tr>
               </thead>
               <tbody id="admin-tbody"></tbody>
             </table>
@@ -526,7 +534,8 @@
       <div class="modal-info">
         <span class="cat-tag" id="m-cat" style="position:static; display:inline-block; margin-bottom:10px;"></span>
         <h2 id="m-nome"></h2>
-        <div class="product-price" id="m-preco" style="font-size:1.7rem; margin:10px 0;"></div>
+        <div class="product-price" id="m-preco" style="font-size:1.7rem; margin:10px 0 4px;"></div>
+        <p id="m-atacado-info" style="font-size:.83rem; color:var(--text-muted); margin-bottom:10px; min-height:1.2em;"></p>
         <p id="m-desc" style="color:var(--text-muted); line-height:1.65; font-size:.95rem; white-space:pre-line;"></p>
         <p id="m-estoque" style="font-size:.85rem; color:var(--text-muted); margin-top:10px; font-weight:600;"></p>
         <div class="qty-row" style="margin-top:18px;">
@@ -585,6 +594,11 @@ function toast(msg) {
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
 const getImagens = p => (p.imagens && p.imagens.length ? p.imagens : (p.imagem ? [p.imagem] : []));
 const getCapa = p => { const imgs = getImagens(p); const i = p.capa || 0; return imgs[i] || imgs[0] || ''; };
+
+const QTD_ATACADO = 3; // a partir de quantas unidades o preço de atacado é aplicado
+const temAtacado = p => p.precoAtacado !== undefined && p.precoAtacado !== null && p.precoAtacado > 0 && p.precoAtacado < p.preco;
+// Retorna o preço unitário que deve ser cobrado, considerando a quantidade
+const precoUnit = (p, qtd) => (temAtacado(p) && qtd >= QTD_ATACADO) ? p.precoAtacado : p.preco;
 
 /* ==================== CATÁLOGO ==================== */
 function carregarProdutos() {
@@ -658,6 +672,7 @@ function renderCatalog() {
         <div class="product-name" style="cursor:pointer" onclick="abrirProduto('${p.id}')">${p.nome}</div>
         <div class="product-desc">${p.descricao || ''}</div>
         <div class="product-price">${fmt(p.preco)}</div>
+        ${temAtacado(p) ? `<div class="atacado-tag">📦 ${QTD_ATACADO}+ un.: ${fmt(p.precoAtacado)} cada</div>` : ''}
         <div class="qty-row">
           <div class="qty-box">
             <button onclick="mudarQtd('${p.id}', -1)">−</button>
@@ -692,9 +707,19 @@ function addCarrinhoQtd(id, qtd) {
   if (!p) return;
   const item = carrinho.find(i => i.id === id);
   if (item) item.qtd += qtd;
-  else carrinho.push({ id: p.id, nome: p.nome, preco: p.preco, categoria: p.categoria || '', imagem: getCapa(p), qtd });
+  else carrinho.push({
+    id: p.id, nome: p.nome,
+    precoVarejo: p.preco,
+    precoAtacado: temAtacado(p) ? p.precoAtacado : null,
+    categoria: p.categoria || '', imagem: getCapa(p), qtd
+  });
   salvarCarrinho();
   toast('✅ ' + p.nome + ' adicionado!');
+}
+
+// Preço unitário aplicado a um item do carrinho, considerando a quantidade dele
+function precoItemCarrinho(item) {
+  return (item.precoAtacado != null && item.qtd >= QTD_ATACADO) ? item.precoAtacado : item.precoVarejo;
 }
 
 /* ==================== MODAL DE PRODUTO ==================== */
@@ -704,12 +729,10 @@ function abrirProduto(id) {
   modalProd = produtos.find(p => p.id === id);
   if (!modalProd) return;
   modalQtd = 1;
-  document.getElementById('m-qtd').textContent = 1;
   document.getElementById('m-nome').textContent = modalProd.nome;
   const catEl = document.getElementById('m-cat');
   catEl.textContent = modalProd.categoria || '';
   catEl.style.display = modalProd.categoria ? 'inline-block' : 'none';
-  document.getElementById('m-preco').textContent = fmt(modalProd.preco);
   document.getElementById('m-desc').textContent = modalProd.descricao || 'Sem descrição.';
   const est = modalProd.estoque;
   const sem = est !== undefined && est !== null && est <= 0;
@@ -719,8 +742,31 @@ function abrirProduto(id) {
   btn.textContent = sem ? 'Indisponível' : '+ Adicionar ao carrinho';
   modalImgs = getImagens(modalProd);
   trocarFoto(modalProd.capa && modalProd.capa < modalImgs.length ? modalProd.capa : 0);
+  atualizarPrecoModal();
   document.getElementById('modal-produto').classList.add('open');
   document.body.style.overflow = 'hidden';
+}
+
+function atualizarPrecoModal() {
+  if (!modalProd) return;
+  document.getElementById('m-qtd').textContent = modalQtd;
+  const unit = precoUnit(modalProd, modalQtd);
+  document.getElementById('m-preco').innerHTML =
+    fmt(unit) + (modalQtd > 1 ? ` <small style="font-size:.6em; font-weight:600; color:var(--text-muted);">(${fmt(unit * modalQtd)} no total)</small>` : '');
+
+  const info = document.getElementById('m-atacado-info');
+  if (temAtacado(modalProd)) {
+    if (modalQtd >= QTD_ATACADO) {
+      info.innerHTML = `✅ Preço de atacado aplicado (${QTD_ATACADO}+ unidades)`;
+      info.style.color = 'var(--accent-dark)';
+    } else {
+      const falta = QTD_ATACADO - modalQtd;
+      info.innerHTML = `📦 Compre mais ${falta} unidade${falta > 1 ? 's' : ''} e pague <strong>${fmt(modalProd.precoAtacado)}</strong> cada`;
+      info.style.color = 'var(--text-muted)';
+    }
+  } else {
+    info.textContent = '';
+  }
 }
 
 function trocarFoto(i) {
@@ -732,7 +778,7 @@ function trocarFoto(i) {
 
 function mQtd(d) {
   modalQtd = Math.max(1, modalQtd + d);
-  document.getElementById('m-qtd').textContent = modalQtd;
+  atualizarPrecoModal();
 }
 
 function addDoModal() {
@@ -765,24 +811,30 @@ function renderCarrinho() {
   if (!carrinho.length) { layout.style.display = 'none'; vazio.style.display = 'block'; return; }
   layout.style.display = ''; vazio.style.display = 'none';
 
-  document.getElementById('cart-items').innerHTML = carrinho.map((i, idx) => `
+  document.getElementById('cart-items').innerHTML = carrinho.map((i, idx) => {
+    const unit = precoItemCarrinho(i);
+    const noAtacado = i.precoAtacado != null && i.qtd >= QTD_ATACADO;
+    const faltaAtacado = i.precoAtacado != null && !noAtacado ? QTD_ATACADO - i.qtd : 0;
+    return `
     <div class="cart-item">
       <div class="cart-item-img">${i.imagem ? `<img src="${i.imagem}">` : '📦'}</div>
       <div class="cart-item-info">
         <h4>${i.nome}</h4>
-        <div class="unit">${fmt(i.preco)} / un.</div>
+        <div class="unit">${fmt(unit)} / un. ${noAtacado ? '<span style="color:var(--accent-dark); font-weight:700;">· atacado ✅</span>' : ''}</div>
+        ${faltaAtacado > 0 ? `<div style="font-size:.74rem; color:var(--text-muted); margin-top:2px;">📦 +${faltaAtacado} un. para pagar ${fmt(i.precoAtacado)} cada</div>` : ''}
         <div class="qty-box" style="margin-top:6px; display:inline-flex;">
           <button onclick="cartQtd(${idx}, -1)">−</button>
           <span>${i.qtd}</span>
           <button onclick="cartQtd(${idx}, 1)">+</button>
         </div>
       </div>
-      <div class="cart-item-total">${fmt(i.preco * i.qtd)}</div>
+      <div class="cart-item-total">${fmt(unit * i.qtd)}</div>
       <button class="btn-remove" onclick="removerItem(${idx})" title="Remover">🗑</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   const totalItens = carrinho.reduce((s,i) => s + i.qtd, 0);
-  const subtotal = carrinho.reduce((s,i) => s + i.preco * i.qtd, 0);
+  const subtotal = carrinho.reduce((s,i) => s + precoItemCarrinho(i) * i.qtd, 0);
   document.getElementById('sum-itens').textContent = totalItens;
   document.getElementById('sum-total').textContent = fmt(subtotal);
 }
@@ -854,7 +906,7 @@ async function enviarPedido(btn) {
   if (!nome) return toast('⚠️ Digite seu nome!');
   if (!endereco) return toast('⚠️ Digite o endereço de entrega!');
 
-  const total = carrinho.reduce((s,i) => s + i.preco * i.qtd, 0);
+  const total = carrinho.reduce((s,i) => s + precoItemCarrinho(i) * i.qtd, 0);
   const codigo = gerarCodigo();
   const agora = new Date();
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Registrando pedido...'; }
@@ -877,7 +929,7 @@ async function enviarPedido(btn) {
         uf: cepDados?.uf || ''
       },
       obs,
-      itens: carrinho.map(i => ({ id: i.id, nome: i.nome, preco: i.preco, qtd: i.qtd })),
+      itens: carrinho.map(i => ({ id: i.id, nome: i.nome, preco: precoItemCarrinho(i), qtd: i.qtd })),
       total,
       status: 'pendente_aprovacao',
       criadoEm: firebase.firestore.FieldValue.serverTimestamp()
@@ -897,7 +949,7 @@ async function enviarPedido(btn) {
   if (cepDados) msg += `📍 Entrega: ${cepDados.localidade}-${cepDados.uf} (CEP ${document.getElementById('c-cep').value})\n`;
   msg += `🏠 Endereço: ${endereco}\n`;
   msg += `\n*Itens:*\n`;
-  carrinho.forEach(i => { msg += `▪️ ${i.nome} x${i.qtd} — ${fmt(i.preco * i.qtd)}\n`; });
+  carrinho.forEach(i => { msg += `▪️ ${i.nome} x${i.qtd} — ${fmt(precoItemCarrinho(i) * i.qtd)}\n`; });
   msg += `\n💰 *Total: ${fmt(total)}*`;
   if (obs) msg += `\n\n📝 Obs: ${obs}`;
 
@@ -1447,12 +1499,18 @@ function salvarProduto() {
   const id = document.getElementById('p-id').value;
   const nome = document.getElementById('p-nome').value.trim();
   const preco = parseFloat(document.getElementById('p-preco').value);
+  const precoAtacadoRaw = document.getElementById('p-preco-atacado').value;
+  const precoAtacado = precoAtacadoRaw.trim() === '' ? null : parseFloat(precoAtacadoRaw);
   const categoria = document.getElementById('p-categoria').value.trim();
   const msg = document.getElementById('prod-msg');
   msg.className = 'msg';
 
   if (!nome || isNaN(preco) || !categoria) {
-    msg.className = 'msg err'; msg.textContent = 'Preencha nome, preço e categoria.';
+    msg.className = 'msg err'; msg.textContent = 'Preencha nome, preço de varejo e categoria.';
+    return;
+  }
+  if (precoAtacado !== null && (isNaN(precoAtacado) || precoAtacado >= preco)) {
+    msg.className = 'msg err'; msg.textContent = 'O preço de atacado deve ser menor que o preço de varejo.';
     return;
   }
 
@@ -1460,6 +1518,7 @@ function salvarProduto() {
     nome,
     descricao: document.getElementById('p-desc').value.trim(),
     preco,
+    precoAtacado: precoAtacado,
     estoque: parseInt(document.getElementById('p-estoque').value) || 0,
     categoria,
     atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
@@ -1488,6 +1547,7 @@ function editarProduto(id) {
   document.getElementById('p-nome').value = p.nome;
   document.getElementById('p-desc').value = p.descricao || '';
   document.getElementById('p-preco').value = p.preco;
+  document.getElementById('p-preco-atacado').value = (p.precoAtacado !== undefined && p.precoAtacado !== null) ? p.precoAtacado : '';
   document.getElementById('p-estoque').value = p.estoque || 0;
   document.getElementById('p-categoria').value = p.categoria || '';
   imagensProd = [...getImagens(p)];
@@ -1500,7 +1560,7 @@ function editarProduto(id) {
 }
 
 function cancelarEdicao() {
-  ['p-id','p-nome','p-desc','p-preco','p-estoque','p-categoria'].forEach(i => document.getElementById(i).value = '');
+  ['p-id','p-nome','p-desc','p-preco','p-preco-atacado','p-estoque','p-categoria'].forEach(i => document.getElementById(i).value = '');
   imagensProd = [];
   capaIdx = 0;
   document.getElementById('p-img').value = '';
@@ -1525,6 +1585,7 @@ function renderAdminTable() {
       <td><strong>${p.nome}</strong></td>
       <td>${p.categoria || '-'}</td>
       <td>${fmt(p.preco)}</td>
+      <td>${(p.precoAtacado !== undefined && p.precoAtacado !== null) ? fmt(p.precoAtacado) : '<span style="color:var(--text-muted)">—</span>'}</td>
       <td>${p.estoque ?? '-'}</td>
       <td style="white-space:nowrap">
         <button class="mini-btn mini-edit" onclick="editarProduto('${p.id}')">Editar</button>
