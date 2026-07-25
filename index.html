@@ -8,6 +8,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root {
     --primary: #0d2b6b;
@@ -475,9 +477,21 @@
 
       <!-- ===== ABA PEDIDOS ===== -->
       <div id="aview-pedidos" style="display:none">
-        <div class="field" style="max-width:340px; margin-bottom:.8rem;">
-          <label>🔍 Buscar por código do pedido</label>
-          <input type="text" id="f-codigo" placeholder="Ex: ZP-260724-A8X2" oninput="renderPedidos()" style="text-transform:uppercase;">
+        <div style="display:flex; gap:1rem; flex-wrap:wrap; align-items:end; margin-bottom:.9rem;">
+          <div class="field" style="max-width:280px; margin-bottom:0; flex:1; min-width:200px;">
+            <label>🔍 Buscar por código do pedido</label>
+            <input type="text" id="f-codigo" placeholder="Ex: ZP-260724-A8X2" oninput="renderPedidos()" style="text-transform:uppercase;">
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>De</label>
+            <input type="date" id="f-data-de" onchange="renderPedidos()">
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>Até</label>
+            <input type="date" id="f-data-ate" onchange="renderPedidos()">
+          </div>
+          <button class="btn-clear" onclick="limparFiltrosPedidos()">✕ Limpar</button>
+          <button class="btn-clear" style="background:var(--primary); color:#fff; border-color:var(--primary);" onclick="exportarRelatorioPedidos()">📊 Exportar relatório</button>
         </div>
         <div class="filtros-ped">
           <button class="admin-tab fped active" data-f="todos" onclick="filtrarPedidos('todos')">Todos</button>
@@ -486,6 +500,7 @@
           <button class="admin-tab fped" data-f="enviado" onclick="filtrarPedidos('enviado')">✅ Enviados</button>
           <button class="admin-tab fped" data-f="cancelado" onclick="filtrarPedidos('cancelado')">❌ Cancelados</button>
         </div>
+        <p id="ped-resultado-info" style="font-size:.83rem; color:var(--text-muted); margin-bottom:.8rem;"></p>
         <div id="pedidos-lista"></div>
         <div id="pedidos-empty" class="empty-state" style="display:none">
           <div class="icon">📋</div>
@@ -948,12 +963,45 @@ function filtrarPedidos(f) {
   renderPedidos();
 }
 
-function renderPedidos() {
+function limparFiltrosPedidos() {
+  document.getElementById('f-codigo').value = '';
+  document.getElementById('f-data-de').value = '';
+  document.getElementById('f-data-ate').value = '';
+  filtroPed = 'todos';
+  document.querySelectorAll('.fped').forEach(b => b.classList.toggle('active', b.dataset.f === 'todos'));
+  renderPedidos();
+}
+
+function pedidosFiltrados() {
   const busca = (document.getElementById('f-codigo')?.value || '').trim().toUpperCase();
+  const dataDe = document.getElementById('f-data-de')?.value || '';
+  const dataAte = document.getElementById('f-data-ate')?.value || '';
+
   let lista = filtroPed === 'todos' ? pedidos : pedidos.filter(p => p.status === filtroPed);
   if (busca) lista = lista.filter(p => (p.codigo || '').toUpperCase().includes(busca));
+  if (dataDe || dataAte) {
+    lista = lista.filter(p => {
+      if (!p.criadoEm?.toDate) return false;
+      const d = p.criadoEm.toDate();
+      const diaISO = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      if (dataDe && diaISO < dataDe) return false;
+      if (dataAte && diaISO > dataAte) return false;
+      return true;
+    });
+  }
+  return lista;
+}
+
+function renderPedidos() {
+  const lista = pedidosFiltrados();
   const cont = document.getElementById('pedidos-lista');
   document.getElementById('pedidos-empty').style.display = lista.length ? 'none' : 'block';
+
+  const totalValor = lista.reduce((s,p) => s + (p.total || 0), 0);
+  document.getElementById('ped-resultado-info').textContent =
+    lista.length + ' pedido' + (lista.length !== 1 ? 's' : '') + ' encontrado' + (lista.length !== 1 ? 's' : '') +
+    (lista.length ? ' · Total: ' + fmt(totalValor) : '');
+
   cont.innerHTML = lista.map(p => {
     const data = p.criadoEm?.toDate ? p.criadoEm.toDate().toLocaleString('pt-BR') : '—';
     const acoes =
@@ -987,7 +1035,10 @@ function renderPedidos() {
         <div style="font-size:.85rem; color:var(--text-muted)">
           <strong style="color:var(--primary); font-size:1rem;">Total ${fmt(p.total || 0)}</strong>
         </div>
-        <div>${acoes}</div>
+        <div>
+          <button class="mini-btn" style="background:#eef1f5; color:var(--primary)" onclick="exportarPedidoPDF('${p.id}')">📄 PDF</button>
+          ${acoes}
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -1059,6 +1110,167 @@ function marcarEnviado(id) {
     status: 'enviado',
     enviadoEm: firebase.firestore.FieldValue.serverTimestamp()
   }).then(() => toast('🚚 Pedido marcado como enviado!'));
+}
+
+/* ==================== EXPORTAR PDF — PEDIDO DETALHADO ==================== */
+function cabecalhoPDF(doc, subtitulo) {
+  doc.setFillColor(13, 43, 107);
+  doc.rect(0, 0, 210, 30, 'F');
+  if (typeof LOGO_B64 !== 'undefined') {
+    try { doc.addImage(LOGO_B64, 'PNG', 14, 6, 18, 18); } catch (e) {}
+  }
+  doc.setTextColor(255).setFontSize(16).setFont(undefined, 'bold');
+  doc.text(config.nome || 'ZAP STORE', 38, 15);
+  doc.setFontSize(9.5).setFont(undefined, 'normal');
+  doc.text(subtitulo, 38, 22);
+  doc.setTextColor(40);
+}
+
+async function exportarPedidoPDF(id) {
+  const p = pedidos.find(x => x.id === id);
+  if (!p) return;
+  toast('⏳ Gerando PDF...');
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const dataStr = p.criadoEm?.toDate ? p.criadoEm.toDate().toLocaleString('pt-BR') : '—';
+
+  cabecalhoPDF(doc, 'Detalhamento de Pedido');
+
+  doc.setFontSize(13).setFont(undefined, 'bold');
+  doc.text('Pedido ' + p.codigo, 14, 40);
+  doc.setFontSize(9.5).setFont(undefined, 'normal').setTextColor(90);
+  doc.text('Status: ' + (STATUS_LABEL[p.status] || p.status).replace(/^[^\w]+/, ''), 14, 46);
+  doc.text('Data: ' + dataStr, 120, 46);
+
+  doc.setDrawColor(225).line(14, 51, 196, 51);
+
+  doc.setTextColor(40).setFontSize(10.5).setFont(undefined, 'bold');
+  doc.text('Dados do Cliente', 14, 59);
+  doc.setFont(undefined, 'normal').setFontSize(9.5);
+  let y = 66;
+  doc.text('Nome: ' + (p.cliente?.nome || '-'), 14, y); y += 6;
+  if (p.cliente?.fone) { doc.text('Telefone: ' + p.cliente.fone, 14, y); y += 6; }
+  if (p.cliente?.cidade) { doc.text('Cidade/UF: ' + p.cliente.cidade + '-' + p.cliente.uf + '   CEP: ' + (p.cliente.cep || '-'), 14, y); y += 6; }
+  if (p.cliente?.endereco) {
+    const linhas = doc.splitTextToSize('Endereço: ' + p.cliente.endereco, 180);
+    doc.text(linhas, 14, y); y += linhas.length * 6;
+  }
+  if (p.obs) {
+    const linhas = doc.splitTextToSize('Observações: ' + p.obs, 180);
+    doc.text(linhas, 14, y); y += linhas.length * 6;
+  }
+  y += 4;
+
+  doc.setFont(undefined, 'bold').setFontSize(10.5);
+  doc.text('Itens do Pedido', 14, y);
+  y += 4;
+
+  // Carrega miniaturas das imagens dos produtos (se existirem no catálogo atual)
+  const itens = p.itens || [];
+  const imgSize = 14; // minimalista
+  const linhaAltura = 18;
+
+  doc.autoTable({
+    startY: y,
+    head: [['', 'Produto', 'Qtd', 'Preço un.', 'Subtotal']],
+    body: itens.map(i => ['', i.nome, i.qtd, fmt(i.preco), fmt(i.preco * i.qtd)]),
+    headStyles: { fillColor: [13, 43, 107], fontSize: 9.5 },
+    bodyStyles: { fontSize: 9.5, minCellHeight: linhaAltura, valign: 'middle' },
+    columnStyles: {
+      0: { cellWidth: imgSize + 6 },
+      2: { halign: 'center' }, 3: { halign: 'right' }, 4: { halign: 'right' }
+    },
+    foot: [['', '', '', 'TOTAL', fmt(p.total || 0)]],
+    footStyles: { fillColor: [240, 244, 248], textColor: [13, 43, 107], fontStyle: 'bold', fontSize: 10.5, halign: 'right' },
+    didDrawCell: (data) => {
+      if (data.section === 'body' && data.column.index === 0) {
+        const item = itens[data.row.index];
+        const prod = produtos.find(pr => pr.id === item.id);
+        const img = prod ? getCapa(prod) : '';
+        if (img) {
+          try {
+            const x = data.cell.x + 3;
+            const yImg = data.cell.y + (data.cell.height - imgSize) / 2;
+            doc.addImage(img, 'JPEG', x, yImg, imgSize, imgSize);
+          } catch (e) {}
+        }
+      }
+    }
+  });
+
+  const finalY = doc.lastAutoTable.finalY + 12;
+  doc.setFontSize(8.5).setTextColor(130).setFont(undefined, 'normal');
+  doc.text('Documento gerado em ' + new Date().toLocaleString('pt-BR') + ' — ' + (config.nome || 'ZAP STORE'), 14, doc.internal.pageSize.height - 10);
+
+  doc.save('pedido-' + p.codigo + '.pdf');
+  toast('📄 PDF do pedido gerado!');
+}
+
+/* ==================== EXPORTAR PDF — RELATÓRIO DO PERÍODO ==================== */
+function exportarRelatorioPedidos() {
+  const lista = pedidosFiltrados();
+  if (!lista.length) return toast('⚠️ Nenhum pedido para exportar com esses filtros.');
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  const dataDe = document.getElementById('f-data-de').value;
+  const dataAte = document.getElementById('f-data-ate').value;
+  const statusTxt = filtroPed === 'todos' ? 'Todos os status' : (STATUS_LABEL[filtroPed] || filtroPed).replace(/^[^\w]+/, '');
+  const periodoTxt = (dataDe || dataAte)
+    ? 'Período: ' + (dataDe ? formatarDataISO(dataDe) : 'início') + ' até ' + (dataAte ? formatarDataISO(dataAte) : 'hoje')
+    : 'Período: todos os registros';
+
+  cabecalhoPDF(doc, 'Relatório de Pedidos');
+
+  doc.setFontSize(10).setTextColor(70).setFont(undefined, 'normal');
+  doc.text(periodoTxt, 14, 39);
+  doc.text('Filtro de status: ' + statusTxt, 14, 45);
+  doc.text('Gerado em: ' + new Date().toLocaleString('pt-BR'), 14, 51);
+
+  const totalGeral = lista.reduce((s,p) => s + (p.total || 0), 0);
+  const porStatus = {};
+  lista.forEach(p => { porStatus[p.status] = (porStatus[p.status] || 0) + 1; });
+
+  doc.autoTable({
+    startY: 58,
+    head: [['Código', 'Data', 'Cliente', 'Cidade/UF', 'Status', 'Total']],
+    body: lista.map(p => [
+      p.codigo,
+      p.criadoEm?.toDate ? p.criadoEm.toDate().toLocaleDateString('pt-BR') : '—',
+      p.cliente?.nome || '-',
+      p.cliente?.cidade ? p.cliente.cidade + '-' + p.cliente.uf : '-',
+      (STATUS_LABEL[p.status] || p.status).replace(/^[^\w]+/, ''),
+      fmt(p.total || 0)
+    ]),
+    headStyles: { fillColor: [13, 43, 107], fontSize: 9 },
+    bodyStyles: { fontSize: 8.5 },
+    columnStyles: { 5: { halign: 'right' } },
+    foot: [['', '', '', '', 'TOTAL GERAL', fmt(totalGeral)]],
+    footStyles: { fillColor: [240, 244, 248], textColor: [13, 43, 107], fontStyle: 'bold', fontSize: 9.5, halign: 'right' }
+  });
+
+  let y = doc.lastAutoTable.finalY + 10;
+  doc.setFontSize(10).setTextColor(40).setFont(undefined, 'bold');
+  doc.text('Resumo por status', 14, y);
+  y += 6;
+  doc.setFont(undefined, 'normal').setFontSize(9);
+  Object.entries(porStatus).forEach(([st, qtd]) => {
+    doc.text('• ' + (STATUS_LABEL[st] || st).replace(/^[^\w]+/, '') + ': ' + qtd + ' pedido' + (qtd > 1 ? 's' : ''), 16, y);
+    y += 5.5;
+  });
+
+  doc.setFontSize(8.5).setTextColor(130);
+  doc.text('Relatório gerado automaticamente — ' + (config.nome || 'ZAP STORE'), 14, doc.internal.pageSize.height - 10);
+
+  doc.save('relatorio-pedidos-' + new Date().toISOString().slice(0,10) + '.pdf');
+  toast('📊 Relatório exportado!');
+}
+
+function formatarDataISO(iso) {
+  const [a, m, d] = iso.split('-');
+  return d + '/' + m + '/' + a;
 }
 
 function fazerLogin() {
