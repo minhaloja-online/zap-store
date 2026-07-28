@@ -1,0 +1,44 @@
+rules_version = '2';
+
+// Cole isto em: Firebase → Firestore Database → Regras → Publicar
+//
+// Sem estas regras, o banco pode estar em modo de teste — o que significa que
+// qualquer pessoa na internet consegue mudar o preço dos seus produtos.
+// Confira isso ANTES de ligar o pagamento online.
+//
+// O servidor de pagamento usa a chave de conta de serviço e passa por cima
+// destas regras — ele continua conseguindo ler e escrever normalmente.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Catálogo: qualquer um vê, só você (logado) altera.
+    match /produtos/{id} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Configurações da loja: idem.
+    match /config/{id} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Pedidos: o cliente pode criar o dele, mas não pode ler nem alterar
+    // pedidos (nem os próprios, nem os dos outros). Quem lê é você, logado.
+    match /pedidos/{id} {
+      allow read, update, delete: if request.auth != null;
+
+      allow create: if request.resource.data.status in ['aguardando_pagamento', 'pendente_aprovacao']
+                    && request.resource.data.total is number
+                    && request.resource.data.total > 0
+                    && request.resource.data.itens.size() > 0
+                    && request.resource.data.itens.size() < 100
+                    && request.resource.data.cliente.nome is string
+                    && request.resource.data.cliente.nome.size() > 0
+                    // o cliente não pode inventar um pagamento já aprovado
+                    && !('pagamento' in request.resource.data)
+                    && !('pagoEm' in request.resource.data);
+    }
+  }
+}
