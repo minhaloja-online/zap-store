@@ -103,8 +103,8 @@
     font-size: 0.7rem; font-weight: 700; padding: 3px 10px; border-radius: 20px; letter-spacing: .3px;
   }
   .stock-tag {
-    position: absolute; top: 10px; right: 10px; background: rgba(224,150,20,0.95); color: #fff;
-    font-size: 0.68rem; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+    position: absolute; top: 10px; right: 10px; background: rgba(231,76,60,0.92); color: #fff;
+    font-size: 0.7rem; font-weight: 700; padding: 3px 10px; border-radius: 20px;
   }
   .product-body { padding: 0.95rem 1rem 1.1rem; display: flex; flex-direction: column; flex: 1; }
   .product-name { font-weight: 700; font-size: 1rem; color: var(--text); line-height: 1.3; }
@@ -163,11 +163,6 @@
   .btn-whats:hover { background: var(--accent-dark); }
   .btn-ghost { background: #eef1f5; color: var(--text-muted); }
   .btn-ghost:hover { background: #e2e7ee; }
-  .btn-pay { background: var(--electric); color: #fff; }
-  .btn-pay:hover { background: var(--primary-light); }
-  .btn-pay:disabled { background: #9db9d4; cursor: wait; }
-  .pay-sep { display:flex; align-items:center; gap:10px; margin:14px 0 10px; color:var(--text-muted); font-size:.72rem; font-weight:700; letter-spacing:.06em; }
-  .pay-sep::before, .pay-sep::after { content:''; flex:1; height:1px; background:var(--border); }
 
   /* ===== ADMIN ===== */
   .admin-layout { display: grid; grid-template-columns: 1fr 1.4fr; gap: 1.5rem; align-items: start; }
@@ -222,7 +217,6 @@
   .pedido-card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:1rem 1.2rem; margin-bottom:.9rem; box-shadow:var(--shadow); }
   .status-badge { font-size:.7rem; font-weight:800; padding:4px 10px; border-radius:20px; margin-left:8px; white-space:nowrap; }
   .st-pendente_aprovacao { background:#fff4e0; color:#a35c00; }
-  .st-aguardando_pagamento { background:#e6f1ff; color:#12508f; }
   .st-pendente_envio { background:#e3efff; color:#1a56b0; }
   .st-enviado { background:#e8f7ee; color:#1d7a46; }
   .st-cancelado { background:#fdecea; color:#b23b2e; }
@@ -391,14 +385,6 @@
         </div>
         <div class="sum-row"><span>Itens</span><span id="sum-itens">0</span></div>
         <div class="sum-row total"><span>Total</span><span id="sum-total">R$ 0,00</span></div>
-        <div id="bloco-pagamento" style="display:none">
-          <button class="btn-block btn-pay" onclick="pagarOnline(this)">💳 Pagar agora</button>
-          <p style="font-size:.74rem; color:var(--text-muted); text-align:center; margin-top:8px; line-height:1.5;">
-            Cartão, Pix ou boleto pelo Mercado Pago.<br>Seu pedido entra na fila assim que o pagamento cair.
-          </p>
-          <div class="pay-sep">OU</div>
-        </div>
-
         <button class="btn-block btn-whats" onclick="enviarPedido(this)">💬 Enviar pedido pelo WhatsApp</button>
         <p style="font-size:.74rem; color:var(--text-muted); text-align:center; margin-top:8px; line-height:1.5;">
           A mensagem com todos os dados do pedido<br>será aberta no WhatsApp do vendedor. 😉
@@ -452,23 +438,37 @@
       <div id="aview-produtos">
       <div class="panel" style="margin-bottom:1.2rem;">
         <h3>📥 Importar Produtos em Massa</h3>
-        <p style="font-size:.85rem; color:var(--text-muted); margin-bottom:1rem;">
-          Envie uma planilha (.xlsx ou .csv) com os produtos. Colunas aceitas: <code>nome</code>, <code>descricao</code>, <code>preco</code>, <code>precoAtacado</code>, <code>estoque</code>, <code>categoria</code>.
+
+        <p style="font-size:.85rem; color:var(--text-muted); margin-bottom:.7rem;">
+          <strong>Passo 1:</strong> envie a planilha (.xlsx ou .csv). Colunas aceitas: <code>nome</code>, <code>descricao</code>, <code>preco</code>, <code>precoAtacado</code>, <code>estoque</code>, <code>categoria</code>.
         </p>
         <div class="img-drop" onclick="document.getElementById('import-file').click()">
-          <span>📄 Clique para selecionar a planilha (.xlsx ou .csv)</span>
+          <span id="import-file-label">📄 Clique para selecionar a planilha (.xlsx ou .csv)</span>
         </div>
         <input type="file" id="import-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="lerPlanilhaImportacao(this)">
+
+        <div id="import-fotos-box" style="display:none; margin-top:1.1rem;">
+          <p style="font-size:.85rem; color:var(--text-muted); margin-bottom:.7rem;">
+            <strong>Passo 2 (opcional):</strong> selecione a pasta com as fotos. O sistema casa cada foto com o produto pelo <strong>nome do arquivo</strong> comparado à coluna <code>descricao</code>. Pode selecionar a pasta principal que ele varre as subpastas.
+          </p>
+          <div class="img-drop" onclick="document.getElementById('import-fotos').click()">
+            <span id="import-fotos-label">🖼️ Clique para selecionar a pasta de imagens</span>
+          </div>
+          <input type="file" id="import-fotos" accept="image/*" multiple webkitdirectory directory style="display:none" onchange="lerImagensImportacao(this)">
+          <p id="import-fotos-status" style="font-size:.82rem; margin-top:6px; color:var(--text-muted);"></p>
+        </div>
+
         <div id="import-preview" style="display:none; margin-top:1rem;">
           <p id="import-resumo" style="font-size:.88rem; font-weight:700; margin-bottom:.6rem;"></p>
-          <div style="overflow-x:auto; -webkit-overflow-scrolling:touch; max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
+          <div style="overflow-x:auto; -webkit-overflow-scrolling:touch; max-height:340px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
             <table class="admin-table" style="margin:0;">
               <thead>
-                <tr><th>#</th><th>Nome</th><th>Preço</th><th>Atacado</th><th>Estoque</th><th>Categoria</th><th>Status</th></tr>
+                <tr><th>#</th><th>Foto</th><th>Nome</th><th>Preço</th><th>Atacado</th><th>Estoque</th><th>Categoria</th><th>Status</th></tr>
               </thead>
               <tbody id="import-tbody"></tbody>
             </table>
           </div>
+          <p id="import-progresso" style="display:none; font-size:.88rem; font-weight:700; color:var(--primary); margin-top:.8rem;"></p>
           <div style="display:flex; gap:10px; margin-top:1rem; flex-wrap:wrap;">
             <button class="btn-block btn-pdf" id="btn-confirmar-import" onclick="confirmarImportacao()" style="flex:1; min-width:200px; margin-top:0;">✔ Confirmar Importação</button>
             <button class="btn-clear" onclick="cancelarImportacao()">✕ Cancelar</button>
@@ -538,11 +538,6 @@
               <label>WhatsApp do vendedor (com DDD)</label>
               <input type="tel" id="cfg-whats" placeholder="Ex: 91999998888">
             </div>
-            <div class="field">
-              <label>Endereço do servidor de pagamento</label>
-              <input type="url" id="cfg-api" placeholder="https://sua-loja.onrender.com">
-              <p style="font-size:.72rem; color:var(--text-muted); margin-top:4px;">Deixe em branco para desligar o pagamento online e vender só pelo WhatsApp.</p>
-            </div>
             <button class="btn-block btn-pdf" onclick="salvarConfig()">Salvar configurações</button>
           </div>
         </div>
@@ -585,7 +580,6 @@
         </div>
         <div class="filtros-ped">
           <button class="admin-tab fped active" data-f="todos" onclick="filtrarPedidos('todos')">Todos</button>
-          <button class="admin-tab fped" data-f="aguardando_pagamento" onclick="filtrarPedidos('aguardando_pagamento')">💳 Aguard. pagamento</button>
           <button class="admin-tab fped" data-f="pendente_aprovacao" onclick="filtrarPedidos('pendente_aprovacao')">⏳ Pend. aprovação</button>
           <button class="admin-tab fped" data-f="pendente_envio" onclick="filtrarPedidos('pendente_envio')">📦 Pend. envio</button>
           <button class="admin-tab fped" data-f="enviado" onclick="filtrarPedidos('enviado')">✅ Enviados</button>
@@ -639,12 +633,12 @@
    Geral → "Seus apps" → ícone </> (Web) → copie o firebaseConfig
    ============================================================ */
 const firebaseConfig = {
-  apiKey: "AIzaSyANs-15ig0KeWzr-Sp1f9e4bxHCE6kXXCw",
-  authDomain: "teste-de-pagamento-21848.firebaseapp.com",
-  projectId: "teste-de-pagamento-21848",
-  storageBucket: "teste-de-pagamento-21848.firebasestorage.app",
-  messagingSenderId: "902568915079",
-  appId: "1:902568915079:web:d6f48dd1cc6adc36660822"
+  apiKey: "AIzaSyAni6YoLE-xFSZaF8SxY7IlwFuS-ikzz4E",
+  authDomain: "zap-store-aefc1.firebaseapp.com",
+  projectId: "zap-store-aefc1",
+  storageBucket: "zap-store-aefc1.firebasestorage.app",
+  messagingSenderId: "359022998888",
+  appId: "1:359022998888:web:f99fd1a48558df76afd2dd"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -738,7 +732,7 @@ function renderCatalog() {
   document.getElementById('catalog-empty').style.display = lista.length ? 'none' : 'block';
 
   grid.innerHTML = lista.map(p => {
-    const sobEncomenda = p.estoque !== undefined && p.estoque !== null && p.estoque <= 0;
+    const semEstoque = p.estoque !== undefined && p.estoque !== null && p.estoque <= 0;
     const capa = getCapa(p);
     const numFotos = getImagens(p).length;
     return `
@@ -746,7 +740,7 @@ function renderCatalog() {
       <div class="product-img" style="cursor:pointer" onclick="abrirProduto('${p.id}')" title="Ver detalhes">
         ${capa ? `<img src="${capa}" alt="${p.nome}">` : `<span class="placeholder">📦</span>`}
         ${p.categoria ? `<span class="cat-tag">${p.categoria}</span>` : ''}
-        ${sobEncomenda ? `<span class="stock-tag">⏱ Sob encomenda</span>` : ''}
+        ${semEstoque ? `<span class="stock-tag">Esgotado</span>` : ''}
         ${numFotos > 1 ? `<span style="position:absolute; bottom:8px; right:8px; background:rgba(0,0,0,.55); color:#fff; font-size:.68rem; font-weight:700; padding:2px 8px; border-radius:12px;">📷 ${numFotos}</span>` : ''}
       </div>
       <div class="product-body">
@@ -760,7 +754,9 @@ function renderCatalog() {
             <span id="qtd-${p.id}">1</span>
             <button onclick="mudarQtd('${p.id}', 1)">+</button>
           </div>
-          <button class="btn-add" onclick="addCarrinho('${p.id}')">+ Adicionar</button>
+          <button class="btn-add" onclick="addCarrinho('${p.id}')" ${semEstoque ? 'disabled' : ''}>
+            ${semEstoque ? 'Indisponível' : '+ Adicionar'}
+          </button>
         </div>
       </div>
     </div>`;
@@ -814,18 +810,11 @@ function abrirProduto(id) {
   catEl.style.display = modalProd.categoria ? 'inline-block' : 'none';
   document.getElementById('m-desc').textContent = modalProd.descricao || 'Sem descrição.';
   const est = modalProd.estoque;
-  const sobEncomenda = est !== undefined && est !== null && est <= 0;
-  const elEst = document.getElementById('m-estoque');
-  if (sobEncomenda) {
-    elEst.innerHTML = '⏱ <strong>Sob encomenda</strong> — não temos pronta entrega deste item. Você pode fazer o pedido e o vendedor confirmará o prazo.';
-    elEst.style.color = '#a35c00';
-  } else {
-    elEst.textContent = est ? `✅ ${est} unidade${est>1?'s':''} em estoque` : '';
-    elEst.style.color = 'var(--text-muted)';
-  }
+  const sem = est !== undefined && est !== null && est <= 0;
+  document.getElementById('m-estoque').textContent = sem ? '❌ Produto esgotado' : (est ? `✅ ${est} unidade${est>1?'s':''} em estoque` : '');
   const btn = document.getElementById('m-add');
-  btn.disabled = false;
-  btn.textContent = '+ Adicionar ao carrinho';
+  btn.disabled = sem;
+  btn.textContent = sem ? 'Indisponível' : '+ Adicionar ao carrinho';
   modalImgs = getImagens(modalProd);
   trocarFoto(modalProd.capa && modalProd.capa < modalImgs.length ? modalProd.capa : 0);
   atualizarPrecoModal();
@@ -983,116 +972,6 @@ function gerarCodigo() {
   return 'ZP-' + data + '-' + rand;
 }
 
-/* ==================== DADOS DO PEDIDO ==================== */
-// Lê e valida o formulário do carrinho. Devolve null se faltar alguma coisa.
-function coletarPedido() {
-  if (!carrinho.length) { toast('Carrinho vazio!'); return null; }
-  const nome = document.getElementById('c-nome').value.trim();
-  const fone = document.getElementById('c-fone').value.trim();
-  const obs = document.getElementById('c-obs').value.trim();
-  const endereco = document.getElementById('c-end').value.trim();
-  if (!nome) { toast('⚠️ Digite seu nome!'); return null; }
-  if (!endereco) { toast('⚠️ Digite o endereço de entrega!'); return null; }
-
-  return {
-    codigo: gerarCodigo(),
-    cliente: {
-      nome, fone, endereco,
-      cep: document.getElementById('c-cep').value,
-      cidade: cepDados?.localidade || '',
-      uf: cepDados?.uf || ''
-    },
-    obs,
-    itens: carrinho.map(i => ({ id: i.id, nome: i.nome, preco: precoItemCarrinho(i), qtd: i.qtd })),
-    total: carrinho.reduce((s, i) => s + precoItemCarrinho(i) * i.qtd, 0)
-  };
-}
-
-function esvaziarCarrinho() {
-  carrinho = [];
-  cepDados = null;
-  document.getElementById('cep-info').textContent = '';
-  document.getElementById('c-cep').value = '';
-  salvarCarrinho();
-}
-
-// Aceita o endereço com ou sem "https://" — sem o esquema, o navegador trataria
-// o valor como uma pasta dentro do próprio site.
-function normalizarApi(valor) {
-  let api = (valor || '').trim().replace(/\/+$/, '');
-  if (!api) return '';
-  if (!/^https?:\/\//i.test(api)) api = 'https://' + api;
-  return api;
-}
-
-// Mostra o botão de pagar só quando o servidor estiver configurado
-function atualizarBotaoPagamento() {
-  const bloco = document.getElementById('bloco-pagamento');
-  if (bloco) bloco.style.display = (config.api || '').trim() ? 'block' : 'none';
-}
-
-/* ==================== PAGAMENTO ONLINE ==================== */
-async function pagarOnline(btn) {
-  const api = normalizarApi(config.api);
-  if (!api) return toast('⚠️ Pagamento online não está configurado.');
-
-  const pedido = coletarPedido();
-  if (!pedido) return;
-
-  const textoOriginal = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = '⏳ Preparando pagamento...';
-
-  // Abre a aba agora, ainda dentro do toque, senão o Safari do iPhone bloqueia.
-  let win = null;
-  try {
-    win = window.open('', '_blank');
-    if (win) win.document.write('<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#0d2b6b;"><p>⏳ Abrindo o pagamento...</p></body>');
-  } catch (e) { win = null; }
-
-  try {
-    // 1) registra o pedido
-    const doc = await db.collection('pedidos').add({
-      ...pedido,
-      status: 'aguardando_pagamento',
-      criadoEm: firebase.firestore.FieldValue.serverTimestamp()
-    });
-
-    // 2) o servidor reconfere os preços e devolve o link do checkout
-    const resposta = await fetch(api + '/api/criar-preferencia', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pedidoId: doc.id })
-    });
-
-    if (!resposta.ok) {
-      // O servidor explica o que houve. Melhor mostrar isso do que um texto genérico.
-      let motivo = 'erro ' + resposta.status;
-      try {
-        const corpo = await resposta.json();
-        if (corpo?.erro) motivo = corpo.erro;
-      } catch (_) {}
-      throw new Error(motivo);
-    }
-
-    const { linkPagamento } = await resposta.json();
-    if (!linkPagamento) throw new Error('o servidor não devolveu o link');
-
-    esvaziarCarrinho();
-    toast('✅ Pedido ' + pedido.codigo + ' criado!');
-
-    if (win) win.location.href = linkPagamento;
-    else window.location.href = linkPagamento;
-  } catch (e) {
-    console.error(e);
-    if (win) { try { win.close(); } catch (_) {} }
-    toast('❌ ' + (e.message || 'Não foi possível abrir o pagamento.'));
-  } finally {
-    btn.disabled = false;
-    btn.textContent = textoOriginal;
-  }
-}
-
 async function enviarPedido(btn) {
   if (!carrinho.length) return toast('Carrinho vazio!');
   const nome = document.getElementById('c-nome').value.trim();
@@ -1195,7 +1074,6 @@ let pedidos = [];
 let filtroPed = 'todos';
 
 const STATUS_LABEL = {
-  aguardando_pagamento: '💳 Aguardando pagamento',
   pendente_aprovacao: '⏳ Pendente de aprovação',
   pendente_envio: '📦 Pendente de envio',
   enviado: '✅ Enviado',
@@ -1256,9 +1134,7 @@ function renderPedidos() {
   cont.innerHTML = lista.map(p => {
     const data = p.criadoEm?.toDate ? p.criadoEm.toDate().toLocaleString('pt-BR') : '—';
     const acoes =
-      p.status === 'aguardando_pagamento'
-        ? `<button class="mini-btn mini-del" onclick="cancelarPedido('${p.id}')">✕ Cancelar</button>`
-      : p.status === 'pendente_aprovacao'
+      p.status === 'pendente_aprovacao'
         ? `<button class="mini-btn" style="background:#e8f7ee;color:#1d7a46" onclick="aprovarPedido('${p.id}')">✔ Aprovar</button>
            <button class="mini-btn mini-del" onclick="cancelarPedido('${p.id}')">✕ Cancelar</button>`
       : p.status === 'pendente_envio'
@@ -1284,7 +1160,6 @@ function renderPedidos() {
         ${(p.itens || []).map(i => `<div style="display:flex; justify-content:space-between; padding:2px 0;"><span>▪️ ${i.nome} <strong>x${i.qtd}</strong></span><span>${fmt(i.preco * i.qtd)}</span></div>`).join('')}
       </div>
       ${p.obs ? `<div style="font-size:.8rem; color:var(--text-muted); margin-top:6px;">📝 ${p.obs}</div>` : ''}
-      ${p.pagamento ? `<div style="font-size:.8rem; color:var(--text-muted); margin-top:6px;">💳 ${p.pagamento.metodo || 'Mercado Pago'} · ${p.pagamento.status || '-'} · nº ${p.pagamento.id || '-'}</div>` : ''}
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; flex-wrap:wrap; gap:8px;">
         <div style="font-size:.85rem; color:var(--text-muted)">
           <strong style="color:var(--primary); font-size:1rem;">Total ${fmt(p.total || 0)}</strong>
@@ -1301,31 +1176,19 @@ function renderPedidos() {
 async function aprovarPedido(id) {
   const ped = pedidos.find(p => p.id === id);
   if (!ped) return;
-
-  // Verifica quais itens não têm estoque suficiente (serão sob encomenda)
-  const sobEncomenda = [];
-  for (const item of ped.itens) {
-    const prod = produtos.find(p => p.id === item.id);
-    const disponivel = prod ? (prod.estoque || 0) : 0;
-    if (disponivel < item.qtd) {
-      sobEncomenda.push(`• ${item.nome}: pedido ${item.qtd}, em estoque ${disponivel} → encomendar ${item.qtd - disponivel}`);
-    }
-  }
-
-  let msg = 'Aprovar o pedido ' + ped.codigo + '?\n\nA quantidade dos produtos será debitada do estoque.';
-  if (sobEncomenda.length) {
-    msg += '\n\n⏱ ITENS SOB ENCOMENDA (precisam ser providenciados):\n' + sobEncomenda.join('\n');
-  }
-  if (!confirm(msg)) return;
+  if (!confirm('Aprovar o pedido ' + ped.codigo + '?\n\nA quantidade dos produtos será debitada do estoque.')) return;
 
   const batch = db.batch();
+  let alerta = '';
   for (const item of ped.itens) {
     const prod = produtos.find(p => p.id === item.id);
     if (prod) {
       const novo = (prod.estoque || 0) - item.qtd;
+      if (novo < 0) alerta += '\n⚠️ ' + item.nome + ': estoque insuficiente (ficaria ' + novo + ')';
       batch.update(db.collection('produtos').doc(item.id), { estoque: Math.max(novo, 0) });
     }
   }
+  if (alerta && !confirm('Atenção:' + alerta + '\n\nO estoque será zerado nesses itens. Continuar mesmo assim?')) return;
 
   batch.update(db.collection('pedidos').doc(id), {
     status: 'pendente_envio',
@@ -1870,6 +1733,8 @@ function lerPlanilhaImportacao(input) {
         };
       });
 
+      document.getElementById('import-file-label').textContent = '📄 ' + file.name;
+      document.getElementById('import-fotos-box').style.display = 'block';
       renderPreviewImportacao();
       input.value = '';
     } catch (err) {
@@ -1881,17 +1746,131 @@ function lerPlanilhaImportacao(input) {
   reader.readAsBinaryString(file);
 }
 
+/* ===== IMAGENS DA PASTA: leitura, compressão e casamento por nome de arquivo ===== */
+
+// Normaliza para comparar: minúscula, sem acento, só letras/números
+function chaveComparacao(s) {
+  return String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+// Similaridade por trigramas (0 a 1) — tolera pequenas diferenças de digitação
+function similaridade(a, b) {
+  if (a === b) return 1;
+  if (a.length < 3 || b.length < 3) return 0;
+  const tri = s => { const t = new Set(); for (let i = 0; i < s.length - 2; i++) t.add(s.slice(i, i + 3)); return t; };
+  const A = tri(a), B = tri(b);
+  let comum = 0;
+  A.forEach(t => { if (B.has(t)) comum++; });
+  return (2 * comum) / (A.size + B.size);
+}
+
+function comprimirImagem(file, maxLado = 700, qualidade = 0.7) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if (w > h && w > maxLado) { h *= maxLado / w; w = maxLado; }
+        else if (h > maxLado) { w *= maxLado / h; h = maxLado; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', qualidade));
+      };
+      img.onerror = () => resolve(null);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function lerImagensImportacao(input) {
+  const arquivos = Array.from(input.files || []).filter(f => /\.(jpe?g|png|webp|gif|bmp)$/i.test(f.name));
+  const status = document.getElementById('import-fotos-status');
+
+  if (!arquivos.length) {
+    status.textContent = '⚠️ Nenhuma imagem encontrada na pasta selecionada.';
+    return;
+  }
+
+  status.textContent = `⏳ Processando ${arquivos.length} imagem(ns)... isso pode levar alguns instantes.`;
+  document.getElementById('import-fotos-label').textContent = `🖼️ ${arquivos.length} arquivo(s) selecionado(s)`;
+
+  // Prepara lista com chave de comparação (nome do arquivo sem extensão)
+  const imagens = arquivos.map(f => {
+    const semExt = f.name.replace(/\.[^.]+$/, '');
+    return { file: f, nomeArquivo: f.name, chave: chaveComparacao(semExt), usada: false };
+  });
+
+  let comFoto = 0, semFoto = 0;
+
+  // Casa cada linha da planilha com uma imagem
+  for (const linha of importLinhas) {
+    const alvo = chaveComparacao(linha.descricao || linha.nome);
+    if (!alvo) { linha.imagemArquivo = null; semFoto++; continue; }
+
+    // 1ª tentativa: correspondência exata
+    let match = imagens.find(i => !i.usada && i.chave === alvo);
+
+    // 2ª tentativa: um contém o outro (nome de arquivo pode ter sido cortado/ajustado pelo Windows)
+    if (!match) match = imagens.find(i => !i.usada && (i.chave.includes(alvo) || alvo.includes(i.chave)));
+
+    // 3ª tentativa: maior similaridade acima de 70%
+    if (!match) {
+      let melhor = null, melhorScore = 0.7;
+      for (const i of imagens) {
+        if (i.usada) continue;
+        const s = similaridade(alvo, i.chave);
+        if (s > melhorScore) { melhorScore = s; melhor = i; }
+      }
+      match = melhor;
+    }
+
+    if (match) { match.usada = true; linha.imagemArquivo = match; comFoto++; }
+    else { linha.imagemArquivo = null; semFoto++; }
+  }
+
+  // Comprime só as imagens que foram casadas (com barra de progresso)
+  let feitas = 0;
+  for (const linha of importLinhas) {
+    if (!linha.imagemArquivo) continue;
+    linha.imagemBase64 = await comprimirImagem(linha.imagemArquivo.file);
+    feitas++;
+    if (feitas % 10 === 0) status.textContent = `⏳ Processando imagens... ${feitas}/${comFoto}`;
+  }
+
+  const naoUsadas = imagens.filter(i => !i.usada).length;
+  status.innerHTML =
+    `✅ <strong>${comFoto}</strong> produto(s) com foto` +
+    (semFoto ? ` · <span style="color:var(--danger)">${semFoto} sem foto</span>` : '') +
+    (naoUsadas ? ` · ${naoUsadas} imagem(ns) não usada(s)` : '');
+
+  renderPreviewImportacao();
+  input.value = '';
+}
+
+
 function renderPreviewImportacao() {
   const validas = importLinhas.filter(l => l.valido).length;
   const invalidas = importLinhas.length - validas;
+  const comFoto = importLinhas.filter(l => l.imagemBase64).length;
 
   document.getElementById('import-resumo').innerHTML =
     `${importLinhas.length} linha(s) lida(s) — <span style="color:var(--accent-dark)">${validas} pronta(s) para importar</span>` +
-    (invalidas ? ` · <span style="color:var(--danger)">${invalidas} com erro (serão ignoradas)</span>` : '');
+    (invalidas ? ` · <span style="color:var(--danger)">${invalidas} com erro (serão ignoradas)</span>` : '') +
+    (comFoto ? ` · 🖼️ ${comFoto} com foto` : '');
 
   document.getElementById('import-tbody').innerHTML = importLinhas.map(l => `
     <tr>
       <td>${l.linha}</td>
+      <td>${l.imagemBase64
+        ? `<img src="${l.imagemBase64}" style="width:38px;height:38px;border-radius:6px;object-fit:cover;" title="${l.imagemArquivo ? l.imagemArquivo.nomeArquivo : ''}">`
+        : `<span style="color:var(--text-muted); font-size:.75rem;">—</span>`}</td>
       <td>${l.nome || '<em style="color:var(--text-muted)">—</em>'}</td>
       <td>${l.preco !== null ? fmt(l.preco) : '—'}</td>
       <td>${l.precoAtacado !== null && l.precoAtacado !== undefined ? fmt(l.precoAtacado) : '—'}</td>
@@ -1913,21 +1892,32 @@ function renderPreviewImportacao() {
 async function confirmarImportacao() {
   const validas = importLinhas.filter(l => l.valido);
   if (!validas.length) return;
-  if (!confirm(`Importar ${validas.length} produto(s) para o catálogo?`)) return;
+  const comFoto = validas.filter(l => l.imagemBase64).length;
+  const semFoto = validas.length - comFoto;
+  if (!confirm(
+    `Importar ${validas.length} produto(s) para o catálogo?\n\n` +
+    `🖼️ Com foto: ${comFoto}\n` +
+    `📦 Sem foto: ${semFoto}`
+  )) return;
 
   const btn = document.getElementById('btn-confirmar-import');
+  const prog = document.getElementById('import-progresso');
   btn.disabled = true;
   btn.textContent = '⏳ Importando...';
+  prog.style.display = 'block';
 
   try {
-    // Firestore permite até 500 operações por lote — divide em blocos de 400 por segurança
+    // Lotes pequenos porque cada produto com foto carrega a imagem em base64
+    const TAM_LOTE = 20;
     const blocos = [];
-    for (let i = 0; i < validas.length; i += 400) blocos.push(validas.slice(i, i + 400));
+    for (let i = 0; i < validas.length; i += TAM_LOTE) blocos.push(validas.slice(i, i + TAM_LOTE));
 
+    let enviados = 0;
     for (const bloco of blocos) {
       const batch = db.batch();
       bloco.forEach(l => {
         const ref = db.collection('produtos').doc();
+        const img = l.imagemBase64 || '';
         batch.set(ref, {
           nome: l.nome,
           descricao: l.descricao,
@@ -1935,18 +1925,24 @@ async function confirmarImportacao() {
           precoAtacado: l.precoAtacado,
           estoque: l.estoque,
           categoria: l.categoria,
-          imagens: [], capa: 0, imagem: '',
+          imagens: img ? [img] : [],
+          capa: 0,
+          imagem: img,
           criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
           atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
         });
       });
       await batch.commit();
+      enviados += bloco.length;
+      prog.textContent = `⏳ Importando... ${enviados} de ${validas.length} produto(s)`;
     }
 
+    prog.style.display = 'none';
     toast(`✅ ${validas.length} produto(s) importado(s) com sucesso!`);
     cancelarImportacao();
   } catch (e) {
     console.error(e);
+    prog.style.display = 'none';
     toast('❌ Erro ao importar: ' + e.message);
     btn.disabled = false;
     btn.textContent = '✔ Confirmar Importação';
@@ -1956,8 +1952,14 @@ async function confirmarImportacao() {
 function cancelarImportacao() {
   importLinhas = [];
   document.getElementById('import-preview').style.display = 'none';
+  document.getElementById('import-fotos-box').style.display = 'none';
   document.getElementById('import-tbody').innerHTML = '';
   document.getElementById('import-file').value = '';
+  document.getElementById('import-fotos').value = '';
+  document.getElementById('import-file-label').textContent = '📄 Clique para selecionar a planilha (.xlsx ou .csv)';
+  document.getElementById('import-fotos-label').textContent = '🖼️ Clique para selecionar a pasta de imagens';
+  document.getElementById('import-fotos-status').textContent = '';
+  document.getElementById('import-progresso').style.display = 'none';
 }
 
 function renderAdminTable() {
@@ -1987,10 +1989,8 @@ function carregarConfig() {
       document.getElementById('store-name').textContent = config.nome || 'ZapStore';
       document.getElementById('cfg-nome').value = config.nome || '';
       document.getElementById('cfg-whats').value = config.whats || '';
-      document.getElementById('cfg-api').value = config.api || '';
       document.title = (config.nome || 'ZapStore') + ' - Catálogo de Produtos';
     }
-    atualizarBotaoPagamento();
   });
 }
 
@@ -1998,8 +1998,7 @@ function salvarConfig() {
   const msg = document.getElementById('cfg-msg');
   db.collection('config').doc('loja').set({
     nome: document.getElementById('cfg-nome').value.trim() || 'ZapStore',
-    whats: document.getElementById('cfg-whats').value.trim(),
-    api: normalizarApi(document.getElementById('cfg-api').value)
+    whats: document.getElementById('cfg-whats').value.trim()
   }, { merge: true }).then(() => {
     msg.className = 'msg ok'; msg.textContent = 'Configurações salvas!';
     toast('✅ Configurações salvas!');
