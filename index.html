@@ -103,8 +103,8 @@
     font-size: 0.7rem; font-weight: 700; padding: 3px 10px; border-radius: 20px; letter-spacing: .3px;
   }
   .stock-tag {
-    position: absolute; top: 10px; right: 10px; background: rgba(231,76,60,0.92); color: #fff;
-    font-size: 0.7rem; font-weight: 700; padding: 3px 10px; border-radius: 20px;
+    position: absolute; top: 10px; right: 10px; background: rgba(224,150,20,0.95); color: #fff;
+    font-size: 0.68rem; font-weight: 700; padding: 3px 10px; border-radius: 20px;
   }
   .product-body { padding: 0.95rem 1rem 1.1rem; display: flex; flex-direction: column; flex: 1; }
   .product-name { font-weight: 700; font-size: 1rem; color: var(--text); line-height: 1.3; }
@@ -738,7 +738,7 @@ function renderCatalog() {
   document.getElementById('catalog-empty').style.display = lista.length ? 'none' : 'block';
 
   grid.innerHTML = lista.map(p => {
-    const semEstoque = p.estoque !== undefined && p.estoque !== null && p.estoque <= 0;
+    const sobEncomenda = p.estoque !== undefined && p.estoque !== null && p.estoque <= 0;
     const capa = getCapa(p);
     const numFotos = getImagens(p).length;
     return `
@@ -746,7 +746,7 @@ function renderCatalog() {
       <div class="product-img" style="cursor:pointer" onclick="abrirProduto('${p.id}')" title="Ver detalhes">
         ${capa ? `<img src="${capa}" alt="${p.nome}">` : `<span class="placeholder">📦</span>`}
         ${p.categoria ? `<span class="cat-tag">${p.categoria}</span>` : ''}
-        ${semEstoque ? `<span class="stock-tag">Esgotado</span>` : ''}
+        ${sobEncomenda ? `<span class="stock-tag">⏱ Sob encomenda</span>` : ''}
         ${numFotos > 1 ? `<span style="position:absolute; bottom:8px; right:8px; background:rgba(0,0,0,.55); color:#fff; font-size:.68rem; font-weight:700; padding:2px 8px; border-radius:12px;">📷 ${numFotos}</span>` : ''}
       </div>
       <div class="product-body">
@@ -760,9 +760,7 @@ function renderCatalog() {
             <span id="qtd-${p.id}">1</span>
             <button onclick="mudarQtd('${p.id}', 1)">+</button>
           </div>
-          <button class="btn-add" onclick="addCarrinho('${p.id}')" ${semEstoque ? 'disabled' : ''}>
-            ${semEstoque ? 'Indisponível' : '+ Adicionar'}
-          </button>
+          <button class="btn-add" onclick="addCarrinho('${p.id}')">+ Adicionar</button>
         </div>
       </div>
     </div>`;
@@ -816,11 +814,18 @@ function abrirProduto(id) {
   catEl.style.display = modalProd.categoria ? 'inline-block' : 'none';
   document.getElementById('m-desc').textContent = modalProd.descricao || 'Sem descrição.';
   const est = modalProd.estoque;
-  const sem = est !== undefined && est !== null && est <= 0;
-  document.getElementById('m-estoque').textContent = sem ? '❌ Produto esgotado' : (est ? `✅ ${est} unidade${est>1?'s':''} em estoque` : '');
+  const sobEncomenda = est !== undefined && est !== null && est <= 0;
+  const elEst = document.getElementById('m-estoque');
+  if (sobEncomenda) {
+    elEst.innerHTML = '⏱ <strong>Sob encomenda</strong> — não temos pronta entrega deste item. Você pode fazer o pedido e o vendedor confirmará o prazo.';
+    elEst.style.color = '#a35c00';
+  } else {
+    elEst.textContent = est ? `✅ ${est} unidade${est>1?'s':''} em estoque` : '';
+    elEst.style.color = 'var(--text-muted)';
+  }
   const btn = document.getElementById('m-add');
-  btn.disabled = sem;
-  btn.textContent = sem ? 'Indisponível' : '+ Adicionar ao carrinho';
+  btn.disabled = false;
+  btn.textContent = '+ Adicionar ao carrinho';
   modalImgs = getImagens(modalProd);
   trocarFoto(modalProd.capa && modalProd.capa < modalImgs.length ? modalProd.capa : 0);
   atualizarPrecoModal();
@@ -1296,19 +1301,31 @@ function renderPedidos() {
 async function aprovarPedido(id) {
   const ped = pedidos.find(p => p.id === id);
   if (!ped) return;
-  if (!confirm('Aprovar o pedido ' + ped.codigo + '?\n\nA quantidade dos produtos será debitada do estoque.')) return;
+
+  // Verifica quais itens não têm estoque suficiente (serão sob encomenda)
+  const sobEncomenda = [];
+  for (const item of ped.itens) {
+    const prod = produtos.find(p => p.id === item.id);
+    const disponivel = prod ? (prod.estoque || 0) : 0;
+    if (disponivel < item.qtd) {
+      sobEncomenda.push(`• ${item.nome}: pedido ${item.qtd}, em estoque ${disponivel} → encomendar ${item.qtd - disponivel}`);
+    }
+  }
+
+  let msg = 'Aprovar o pedido ' + ped.codigo + '?\n\nA quantidade dos produtos será debitada do estoque.';
+  if (sobEncomenda.length) {
+    msg += '\n\n⏱ ITENS SOB ENCOMENDA (precisam ser providenciados):\n' + sobEncomenda.join('\n');
+  }
+  if (!confirm(msg)) return;
 
   const batch = db.batch();
-  let alerta = '';
   for (const item of ped.itens) {
     const prod = produtos.find(p => p.id === item.id);
     if (prod) {
       const novo = (prod.estoque || 0) - item.qtd;
-      if (novo < 0) alerta += '\n⚠️ ' + item.nome + ': estoque insuficiente (ficaria ' + novo + ')';
       batch.update(db.collection('produtos').doc(item.id), { estoque: Math.max(novo, 0) });
     }
   }
-  if (alerta && !confirm('Atenção:' + alerta + '\n\nO estoque será zerado nesses itens. Continuar mesmo assim?')) return;
 
   batch.update(db.collection('pedidos').doc(id), {
     status: 'pendente_envio',
