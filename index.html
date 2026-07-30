@@ -1742,15 +1742,14 @@ async function pagarOnline(btn) {
   } catch (e) { win = null; }
 
   try {
-    // 1) Registra o pedido já como "aguardando pagamento" — é o status que o backend
-    //    exige para gerar a preferência do Mercado Pago (o mesmo usado no fluxo do
-    //    WhatsApp). Se o cliente desistir no meio do caminho, o pedido continua
-    //    listado como aguardando pagamento até ser pago ou cancelado.
+    // 1) Registra o pedido como RASCUNHO: ele fica invisível para o cliente e para o
+    //    vendedor. Só passa a valer quando o pagamento for confirmado. Assim, se o
+    //    cliente desistir no meio do caminho, nada aparece como pedido.
     const doc = await db.collection('pedidos').add({
       ...pedido,
       userId: usuario ? usuario.uid : null,
       userEmail: usuario ? (usuario.email || '') : '',
-      status: 'aguardando_pagamento',
+      status: 'rascunho',
       origem: 'mercadopago',
       criadoEm: firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -1837,7 +1836,7 @@ async function tratarRetornoPagamento() {
     mostrarAvisoPagamento(resultado, ref && ref.codigo);
     switchTab('meuspedidos');
   } else {
-    // Pagamento não concluído: o pedido continua como "aguardando pagamento" e o carrinho segue intacto.
+    // Pagamento não concluído: o rascunho continua invisível e o carrinho segue intacto.
     localStorage.removeItem('zap_pagamento_pendente');
     mostrarAvisoPagamento('falha', ref && ref.codigo);
     switchTab('carrinho');
