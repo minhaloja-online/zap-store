@@ -1,18 +1,48 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import { readFileSync } from 'node:fs';
 import admin from 'firebase-admin';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 
 /* ==================== FIREBASE ==================== */
-// A chave da conta de serviço vem inteira numa variável de ambiente.
-// É um JSON — cole em uma linha só, sem quebras.
+/*
+ * A chave da conta de serviço pode chegar de dois jeitos:
+ *  1) FIREBASE_SERVICE_ACCOUNT_PATH — caminho de um arquivo (Secret File no Render)
+ *  2) FIREBASE_SERVICE_ACCOUNT      — o JSON colado como texto
+ * O caminho 1 é o mais seguro contra erro de digitação. Se os dois existirem,
+ * o arquivo ganha.
+ */
+function lerChaveFirebase() {
+  const caminho = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+  if (caminho) {
+    return JSON.parse(readFileSync(caminho, 'utf8'));
+  }
+
+  const texto = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!texto) {
+    throw new Error(
+      'Falta a chave do Firebase. Defina FIREBASE_SERVICE_ACCOUNT_PATH (arquivo) ou FIREBASE_SERVICE_ACCOUNT (texto).'
+    );
+  }
+
+  const chave = JSON.parse(texto);
+  // Se o JSON passou por um campo que converteu "\n" em texto literal,
+  // a chave privada quebra. Isto conserta o caso mais comum.
+  if (chave.private_key && chave.private_key.includes('\\n')) {
+    chave.private_key = chave.private_key.replace(/\\n/g, '\n');
+  }
+  return chave;
+}
+
+const chaveFirebase = lerChaveFirebase();
+
 admin.initializeApp({
-  credential: admin.credential.cert(
-    JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-  ),
+  credential: admin.credential.cert(chaveFirebase),
 });
 const db = admin.firestore();
+
+console.log(`Firebase conectado ao projeto: ${chaveFirebase.project_id}`);
 
 /* ==================== MERCADO PAGO ==================== */
 const mp = new MercadoPagoConfig({
@@ -45,14 +75,21 @@ app.use(cors({
 // Precisam ser iguais às do site.
 const QTD_ATACADO = 3;
 
+// Preço pode ter sido gravado como texto ("49,90") por importação de planilha.
+function paraNumero(v) {
+  if (typeof v === 'number') return v;
+  if (typeof v !== 'string') return NaN;
+  return Number(v.trim().replace(/\s|R\$/gi, '').replace(/\./g, '').replace(',', '.'));
+}
+
 const temAtacado = p =>
   p.precoAtacado !== undefined &&
   p.precoAtacado !== null &&
-  p.precoAtacado > 0 &&
-  p.precoAtacado < p.preco;
+  paraNumero(p.precoAtacado) > 0 &&
+  paraNumero(p.precoAtacado) < paraNumero(p.preco);
 
 const precoUnit = (p, qtd) =>
-  (temAtacado(p) && qtd >= QTD_ATACADO) ? p.precoAtacado : p.preco;
+  (temAtacado(p) && qtd >= QTD_ATACADO) ? paraNumero(p.precoAtacado) : paraNumero(p.preco);
 
 /* ==================== CRIAR PAGAMENTO ==================== */
 /*
@@ -96,12 +133,14 @@ app.post('/api/criar-preferencia', async (req, res) => {
 
       const prodSnap = await db.collection('produtos').doc(String(item.id)).get();
       if (!prodSnap.exists) {
+        console.warn(`Produto não encontrado no Firestore: id="${item.id}" nome="${item.nome}"`);
         return res.status(400).json({ erro: `Produto "${item.nome}" não existe mais.` });
       }
 
       const prod = prodSnap.data();
       const preco = Number(precoUnit(prod, qtd));
       if (!Number.isFinite(preco) || preco <= 0) {
+        console.warn(`Preço inválido em "${prod.nome}": preco=${JSON.stringify(prod.preco)} precoAtacado=${JSON.stringify(prod.precoAtacado)}`);
         return res.status(400).json({ erro: `Preço inválido em "${prod.nome}".` });
       }
 
@@ -256,5 +295,5 @@ const PORTA = process.env.PORT || 3000;
 app.listen(PORTA, () => {
   console.log(`Servidor rodando na porta ${PORTA}`);
   if (!process.env.MP_ACCESS_TOKEN) console.warn('Falta MP_ACCESS_TOKEN no .env');
-  if (!process.env.FIREBASE_SERVICE_ACCOUNT) console.warn('Falta FIREBASE_SERVICE_ACCOUNT no .env');
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT && !process.env.FIREBASE_SERVICE_ACCOUNT_PATH) console.warn('Falta a chave do Firebase');
 });
