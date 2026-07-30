@@ -114,10 +114,15 @@
     .main-area { margin-left: 0; }
     .topbar { padding: .5rem .8rem; gap: .6rem; flex-wrap: wrap; }
     .topbar .brand span { display: none; }
-    .brand-logo { width: 36px; height: 36px; }
+    .brand-logo { width: 34px; height: 34px; }
     .topbar-search { order: 3; flex-basis: 100%; max-width: none; margin: .1rem 0 .15rem; }
-    .tb-txt { display: none; }
-    .tb-btn { padding: .45rem .6rem; }
+    /* mantém a saudação e o valor do carrinho visíveis, só menores */
+    .tb-txt small { font-size: .6rem; }
+    .tb-txt strong { font-size: .72rem; }
+    .tb-btn { padding: .38rem .5rem; gap: .35rem; }
+    .tb-ico { font-size: 1rem; }
+    .avatar, .avatar-ph { width: 26px; height: 26px; font-size: .82rem; }
+    .topbar-actions { gap: .35rem; }
     .bottom-nav {
       display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: #fff;
       border-top: 1px solid var(--border); box-shadow: 0 -2px 14px rgba(10,20,40,.1); z-index: 300;
@@ -165,6 +170,46 @@
     .precos-wrap.grande .pb-val { font-size: 1.35rem; }
   }
 
+
+
+  /* ===== FILTROS NA BARRA LATERAL (desktop) ===== */
+  .side-filtros { padding: 0 .55rem .3rem; }
+  .sf-group { margin-bottom: .6rem; }
+  .sf-group label { display: block; font-size: .7rem; font-weight: 700; color: var(--text-muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: .3px; }
+  .sf-group input, .sf-group select {
+    width: 100%; padding: .42rem .5rem; border: 1px solid var(--border); border-radius: 7px;
+    font-size: .84rem; font-family: inherit; background: #fbfcfe; color: var(--text);
+  }
+  .sf-group input:focus, .sf-group select:focus { outline: none; border-color: var(--primary); }
+  .sf-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .sf-limpar {
+    width: 100%; padding: .45rem; margin-top: .2rem; background: #eef1f5; border: 1px solid var(--border);
+    border-radius: 7px; cursor: pointer; font-family: inherit; font-size: .78rem; font-weight: 700; color: var(--text-muted);
+  }
+  .sf-limpar:hover { background: #e2e7ee; color: var(--text); }
+
+  /* Filtros compactos do celular: escondidos no desktop */
+  .filtros-mobile { display: none; }
+  .filters.filtros-mobile { display: none; }
+  button.btn-clear.filtros-mobile { display: none; }
+  @media (max-width: 900px) {
+    .filters.filtros-mobile { display: block; padding: .7rem .8rem; }
+    button.btn-clear.filtros-mobile { display: inline-block; }
+    .filters.filtros-mobile .fg-cat { margin-bottom: .55rem; }
+    /* os 3 filtros numa única linha */
+    .fm-linha { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 6px; }
+    .filters.filtros-mobile label {
+      font-size: .62rem; letter-spacing: 0; margin-bottom: 2px; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .filters.filtros-mobile input, .filters.filtros-mobile select {
+      padding: .4rem .35rem; font-size: .78rem; width: 100%;
+    }
+  }
+  @media (max-width: 380px) {
+    .filters.filtros-mobile label { font-size: .57rem; }
+    .filters.filtros-mobile input, .filters.filtros-mobile select { font-size: .72rem; padding: .35rem .25rem; }
+  }
 
   /* ===== BANNER ROTATIVO ===== */
   .banner-wrap { position: relative; width: 100%; overflow: hidden; background: #0d2b6b; margin-bottom: 1.2rem; border-radius: 0; }
@@ -548,6 +593,36 @@
     <button class="side-btn active" data-tab="loja" onclick="switchTab('loja')"><span class="s-ico">🏠</span> Catálogo</button>
     <button class="side-btn" data-tab="carrinho" onclick="switchTab('carrinho')"><span class="s-ico">🛒</span> Carrinho <span class="side-badge" id="side-cart-badge" style="display:none">0</span></button>
 
+    <div class="side-title">Filtros</div>
+    <div class="side-filtros">
+      <div class="sf-group">
+        <label>Categoria</label>
+        <select id="sf-categoria" onchange="sincronizarFiltro('categoria', this.value)">
+          <option value="">Todas</option>
+        </select>
+      </div>
+      <div class="sf-row">
+        <div class="sf-group">
+          <label>Preço mín.</label>
+          <input type="number" id="sf-min" min="0" placeholder="0" oninput="sincronizarFiltro('min', this.value)">
+        </div>
+        <div class="sf-group">
+          <label>Preço máx.</label>
+          <input type="number" id="sf-max" min="0" placeholder="9999" oninput="sincronizarFiltro('max', this.value)">
+        </div>
+      </div>
+      <div class="sf-group">
+        <label>Ordenar por</label>
+        <select id="sf-ordem" onchange="sincronizarFiltro('ordem', this.value)">
+          <option value="nome">Nome (A-Z)</option>
+          <option value="preco-asc">Menor preço</option>
+          <option value="preco-desc">Maior preço</option>
+          <option value="recente">Mais recentes</option>
+        </select>
+      </div>
+      <button class="sf-limpar" onclick="clearFilters()">✕ Limpar filtros</button>
+    </div>
+
     <div class="side-title">Minha Conta</div>
     <button class="side-btn" data-tab="meuspedidos" onclick="switchTab('meuspedidos')"><span class="s-ico">📋</span> Meus Pedidos</button>
     <button class="side-btn" data-tab="favoritos" onclick="switchTab('favoritos')"><span class="s-ico">❤️</span> Favoritos <span class="side-badge" id="side-fav-badge" style="display:none">0</span></button>
@@ -570,35 +645,38 @@
     <h1 class="page-title">Catálogo de Produtos</h1>
     <p class="page-sub">Escolha seus produtos, monte sua lista e envie o pedido direto pelo WhatsApp!</p>
 
-    <div class="filters">
-      <input type="hidden" id="f-busca">
-      <div class="filter-group">
+    <input type="hidden" id="f-busca">
+    <!-- Filtros compactos (só no celular; no notebook ficam na barra lateral) -->
+    <div class="filters filtros-mobile">
+      <div class="filter-group fg-cat">
         <label>Categoria</label>
-        <select id="f-categoria" onchange="renderCatalog()">
+        <select id="f-categoria" onchange="sincronizarFiltro('categoria', this.value)">
           <option value="">Todas</option>
         </select>
       </div>
-      <div class="filter-group">
-        <label>Preço mín. (R$)</label>
-        <input type="number" id="f-min" min="0" placeholder="0" oninput="renderCatalog()">
-      </div>
-      <div class="filter-group">
-        <label>Preço máx. (R$)</label>
-        <input type="number" id="f-max" min="0" placeholder="9999" oninput="renderCatalog()">
-      </div>
-      <div class="filter-group">
-        <label>Ordenar por</label>
-        <select id="f-ordem" onchange="renderCatalog()">
-          <option value="nome">Nome (A-Z)</option>
-          <option value="preco-asc">Menor preço</option>
-          <option value="preco-desc">Maior preço</option>
-          <option value="recente">Mais recentes</option>
-        </select>
+      <div class="fm-linha">
+        <div class="filter-group">
+          <label>Preço mín.</label>
+          <input type="number" id="f-min" min="0" placeholder="0" oninput="sincronizarFiltro('min', this.value)">
+        </div>
+        <div class="filter-group">
+          <label>Preço máx.</label>
+          <input type="number" id="f-max" min="0" placeholder="9999" oninput="sincronizarFiltro('max', this.value)">
+        </div>
+        <div class="filter-group">
+          <label>Ordenar por</label>
+          <select id="f-ordem" onchange="sincronizarFiltro('ordem', this.value)">
+            <option value="nome">Nome (A-Z)</option>
+            <option value="preco-asc">Menor preço</option>
+            <option value="preco-desc">Maior preço</option>
+            <option value="recente">Mais recentes</option>
+          </select>
+        </div>
       </div>
     </div>
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
       <div class="results-info" id="results-info"></div>
-      <button class="btn-clear" onclick="clearFilters()">✕ Limpar filtros</button>
+      <button class="btn-clear filtros-mobile" onclick="clearFilters()">✕ Limpar filtros</button>
     </div>
 
     <div id="catalog-loader" class="loader"><div class="spinner"></div>Carregando produtos...</div>
@@ -1023,7 +1101,6 @@
         <div class="filtros-ped">
           <button class="admin-tab fped active" data-f="todos" onclick="filtrarPedidos('todos')">Todos</button>
           <button class="admin-tab fped" data-f="aguardando_pagamento" onclick="filtrarPedidos('aguardando_pagamento')">💳 Aguard. pagamento</button>
-          <button class="admin-tab fped" data-f="aguardando_pagamento" onclick="filtrarPedidos('aguardando_pagamento')">💳 Aguard. pagamento</button>
           <button class="admin-tab fped" data-f="pendente_envio" onclick="filtrarPedidos('pendente_envio')">📦 Pend. envio</button>
           <button class="admin-tab fped" data-f="enviado" onclick="filtrarPedidos('enviado')">✅ Enviados</button>
           <button class="admin-tab fped" data-f="cancelado" onclick="filtrarPedidos('cancelado')">❌ Cancelados</button>
@@ -1147,6 +1224,18 @@
   </div>
 </div>
 
+<!-- ===== AVISO DE RETORNO DO PAGAMENTO ===== -->
+<div class="modal-bg" id="aviso-pagamento" onclick="if(event.target===this) fecharAvisoPagamento()">
+  <div class="modal" style="max-width:440px">
+    <div style="padding:2rem 1.6rem; text-align:center;">
+      <div id="ap-icone" style="font-size:3.4rem; line-height:1; margin-bottom:.7rem;"></div>
+      <h2 id="ap-titulo" style="color:var(--primary); font-size:1.3rem; margin-bottom:.8rem;"></h2>
+      <p id="ap-texto" style="color:var(--text-muted); font-size:.95rem; line-height:1.6;"></p>
+      <button class="btn-block btn-pdf" style="margin-top:1.4rem" onclick="fecharAvisoPagamento()">Entendi</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -1248,20 +1337,41 @@ function carregarProdutos() {
 
 function montarCategorias() {
   const cats = [...new Set(produtos.map(p => p.categoria).filter(Boolean))].sort();
-  const sel = document.getElementById('f-categoria');
-  const atual = sel.value;
-  sel.innerHTML = '<option value="">Todas</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join('');
-  sel.value = atual;
+  const opcoes = '<option value="">Todas</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join('');
+  // preenche o filtro do celular e o da barra lateral
+  ['f-categoria', 'sf-categoria'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const atual = sel.value;
+    sel.innerHTML = opcoes;
+    sel.value = atual;
+  });
   document.getElementById('cat-list').innerHTML = cats.map(c => `<option value="${c}">`).join('');
+}
+
+
+// Os filtros existem em dois lugares (barra lateral no notebook, linha compacta no celular).
+// Esta função mantém os dois sempre com o mesmo valor.
+function sincronizarFiltro(campo, valor) {
+  const pares = {
+    categoria: ['f-categoria', 'sf-categoria'],
+    min:       ['f-min', 'sf-min'],
+    max:       ['f-max', 'sf-max'],
+    ordem:     ['f-ordem', 'sf-ordem']
+  };
+  (pares[campo] || []).forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.value !== valor) el.value = valor;
+  });
+  renderCatalog();
 }
 
 function clearFilters() {
   document.getElementById('f-busca').value = '';
   const bt = document.getElementById('busca-topo'); if (bt) bt.value = '';
-  document.getElementById('f-categoria').value = '';
-  document.getElementById('f-min').value = '';
-  document.getElementById('f-max').value = '';
-  document.getElementById('f-ordem').value = 'nome';
+  ['f-categoria','sf-categoria'].forEach(i => { const e = document.getElementById(i); if (e) e.value = ''; });
+  ['f-min','sf-min','f-max','sf-max'].forEach(i => { const e = document.getElementById(i); if (e) e.value = ''; });
+  ['f-ordem','sf-ordem'].forEach(i => { const e = document.getElementById(i); if (e) e.value = 'nome'; });
   renderCatalog();
 }
 
@@ -1587,6 +1697,32 @@ function atualizarBotaoPagamento() {
 }
 
 /* ==================== PAGAMENTO ONLINE ==================== */
+function htmlCarregandoPagamento() {
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Abrindo o pagamento...</title><style>
+    *{box-sizing:border-box;margin:0}
+    body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+      background:linear-gradient(160deg,#081c4a,#0d2b6b 55%,#1d4ec9);
+      color:#fff;min-height:100vh;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;padding:1.5rem;text-align:center}
+    .ampulheta{font-size:4.6rem;line-height:1;animation:girar 2s ease-in-out infinite;margin-bottom:1.2rem}
+    @keyframes girar{0%,45%{transform:rotate(0)}55%,100%{transform:rotate(180deg)}}
+    h1{font-size:1.5rem;font-weight:800;margin-bottom:.6rem}
+    p{font-size:1.05rem;opacity:.92;line-height:1.5;max-width:420px}
+    .barra{margin-top:1.6rem;width:230px;height:7px;border-radius:6px;background:rgba(255,255,255,.22);overflow:hidden}
+    .barra i{display:block;height:100%;width:40%;border-radius:6px;background:#2e9bff;animation:desliza 1.3s ease-in-out infinite}
+    @keyframes desliza{0%{margin-left:-40%}100%{margin-left:100%}}
+    small{margin-top:1.4rem;font-size:.9rem;opacity:.75;max-width:380px}
+  </style></head><body>
+    <div class="ampulheta">&#8987;</div>
+    <h1>Abrindo o pagamento...</h1>
+    <p>Estamos preparando o seu checkout seguro. Isso pode levar alguns segundos.</p>
+    <div class="barra"><i></i></div>
+    <small>Por favor, <strong>não feche esta aba</strong>.</small>
+  </body></html>`;
+}
+
 async function pagarOnline(btn) {
   const api = normalizarApi(config.api);
   if (!api) return toast('⚠️ Pagamento online não está configurado.');
@@ -1602,20 +1738,24 @@ async function pagarOnline(btn) {
   let win = null;
   try {
     win = window.open('', '_blank');
-    if (win) win.document.write('<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#0d2b6b;"><p>⏳ Abrindo o pagamento...</p></body>');
+    if (win) { win.document.write(htmlCarregandoPagamento()); win.document.close(); }
   } catch (e) { win = null; }
 
   try {
-    // 1) registra o pedido
+    // 1) Registra o pedido já como "aguardando pagamento" — é o status que o backend
+    //    exige para gerar a preferência do Mercado Pago (o mesmo usado no fluxo do
+    //    WhatsApp). Se o cliente desistir no meio do caminho, o pedido continua
+    //    listado como aguardando pagamento até ser pago ou cancelado.
     const doc = await db.collection('pedidos').add({
       ...pedido,
       userId: usuario ? usuario.uid : null,
       userEmail: usuario ? (usuario.email || '') : '',
       status: 'aguardando_pagamento',
+      origem: 'mercadopago',
       criadoEm: firebase.firestore.FieldValue.serverTimestamp()
     });
 
-    // 2) o servidor reconfere os preços e devolve o link do checkout
+    // 2) O servidor reconfere os preços e devolve o link do checkout
     const resposta = await fetch(api + '/api/criar-preferencia', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1623,7 +1763,6 @@ async function pagarOnline(btn) {
     });
 
     if (!resposta.ok) {
-      // O servidor explica o que houve. Melhor mostrar isso do que um texto genérico.
       let motivo = 'erro ' + resposta.status;
       try {
         const corpo = await resposta.json();
@@ -1635,8 +1774,11 @@ async function pagarOnline(btn) {
     const { linkPagamento } = await resposta.json();
     if (!linkPagamento) throw new Error('o servidor não devolveu o link');
 
-    esvaziarCarrinho();
-    toast('✅ Pedido ' + pedido.codigo + ' criado!');
+    // Guarda a referência para reconhecer o retorno do Mercado Pago.
+    // O carrinho NÃO é esvaziado: só limpamos depois do pagamento confirmado.
+    localStorage.setItem('zap_pagamento_pendente', JSON.stringify({
+      pedidoId: doc.id, codigo: pedido.codigo, em: Date.now()
+    }));
 
     if (win) win.location.href = linkPagamento;
     else window.location.href = linkPagamento;
@@ -1649,6 +1791,89 @@ async function pagarOnline(btn) {
     btn.textContent = textoOriginal;
   }
 }
+
+/* ==================== RETORNO DO MERCADO PAGO ====================
+   O Mercado Pago devolve o cliente para o site com ?pagamento=sucesso,
+   ?pagamento=pendente ou ?pagamento=falha (configurado nas back_urls do servidor).
+   Também aceitamos os parâmetros que o próprio Mercado Pago acrescenta
+   (collection_status / status), para funcionar mesmo sem back_urls personalizadas. */
+async function tratarRetornoPagamento() {
+  const url = new URL(window.location.href);
+  const q = url.searchParams;
+
+  let resultado = q.get('pagamento');
+  if (!resultado) {
+    const mp = q.get('collection_status') || q.get('status');
+    if (mp === 'approved') resultado = 'sucesso';
+    else if (mp === 'pending' || mp === 'in_process') resultado = 'pendente';
+    else if (mp === 'rejected' || mp === 'failure' || mp === 'null') resultado = 'falha';
+  }
+  if (!resultado) return;
+
+  // Limpa os parâmetros da barra de endereços
+  ['pagamento','collection_status','status','collection_id','payment_id','preference_id',
+   'external_reference','payment_type','merchant_order_id','site_id','processing_mode',
+   'merchant_account_id'].forEach(p => q.delete(p));
+  history.replaceState({}, '', url.pathname + (q.toString() ? '?' + q.toString() : ''));
+
+  let ref = null;
+  try { ref = JSON.parse(localStorage.getItem('zap_pagamento_pendente') || 'null'); } catch (_) {}
+
+  if (resultado === 'sucesso' || resultado === 'pendente') {
+    const aprovado = resultado === 'sucesso';
+    if (ref && ref.pedidoId) {
+      try {
+        await db.collection('pedidos').doc(ref.pedidoId).update({
+          // Pagamento aprovado vai direto para separação; boleto/pix emitido fica aguardando.
+          status: aprovado ? 'pendente_envio' : 'aguardando_pagamento',
+          ...(aprovado ? { aprovadoEm: firebase.firestore.FieldValue.serverTimestamp() } : {}),
+          retornoPagamento: resultado,
+          atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (e) { console.error('Não foi possível atualizar o pedido:', e); }
+    }
+    localStorage.removeItem('zap_pagamento_pendente');
+    esvaziarCarrinho();          // agora sim o carrinho pode ser limpo
+    mostrarAvisoPagamento(resultado, ref && ref.codigo);
+    switchTab('meuspedidos');
+  } else {
+    // Pagamento não concluído: o pedido continua como "aguardando pagamento" e o carrinho segue intacto.
+    localStorage.removeItem('zap_pagamento_pendente');
+    mostrarAvisoPagamento('falha', ref && ref.codigo);
+    switchTab('carrinho');
+  }
+}
+
+function mostrarAvisoPagamento(tipo, codigo) {
+  const cx = document.getElementById('aviso-pagamento');
+  const ic = document.getElementById('ap-icone');
+  const ti = document.getElementById('ap-titulo');
+  const tx = document.getElementById('ap-texto');
+  if (!cx) return;
+
+  if (tipo === 'sucesso') {
+    ic.textContent = '✅';
+    ti.textContent = 'Pagamento concluído!';
+    tx.innerHTML = 'Recebemos a confirmação do seu pagamento' + (codigo ? ` do pedido <strong>${codigo}</strong>` : '') +
+      '.<br>Seu pedido já está na fila de separação e envio. Acompanhe o andamento aqui em <strong>Meus Pedidos</strong>.';
+  } else if (tipo === 'pendente') {
+    ic.textContent = '⏳';
+    ti.textContent = 'Pagamento em processamento';
+    tx.innerHTML = 'Seu pagamento' + (codigo ? ` do pedido <strong>${codigo}</strong>` : '') +
+      ' foi registrado e está aguardando confirmação (comum em boleto e Pix).<br>Assim que for confirmado, o pedido segue para o envio.';
+  } else {
+    ic.textContent = '🛒';
+    ti.textContent = 'Pagamento não concluído';
+    tx.innerHTML = 'Tudo bem, nada foi cobrado e <strong>seus produtos continuam no carrinho</strong>.<br>' +
+      'Você pode tentar pagar de novo ou enviar o pedido pelo WhatsApp.';
+  }
+  cx.classList.add('open');
+}
+
+function fecharAvisoPagamento() {
+  document.getElementById('aviso-pagamento').classList.remove('open');
+}
+
 
 async function enviarPedido(btn) {
   if (!carrinho.length) return toast('Carrinho vazio!');
@@ -1669,7 +1894,7 @@ async function enviarPedido(btn) {
   let win = null;
   try {
     win = window.open('', '_blank');
-    if (win) win.document.write('<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#1a3a52;"><p>⏳ Abrindo o WhatsApp...</p></body>');
+    if (win) { win.document.write(htmlCarregandoPagamento().replace('Abrindo o pagamento...', 'Abrindo o WhatsApp...').replace('preparando o seu checkout seguro', 'preparando a sua mensagem')); win.document.close(); }
   } catch (e) { win = null; }
 
   try {
@@ -1782,7 +2007,8 @@ auth.onAuthStateChanged(async user => {
   if (ehVendedor) {
     escutarClientes();
     unsubPedidos = db.collection('pedidos').orderBy('criadoEm', 'desc').onSnapshot(snap => {
-      pedidos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // rascunhos são tentativas de pagamento não concluídas: não são pedidos de verdade
+      pedidos = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.status !== 'rascunho');
       renderPedidos();
       const pend = pedidos.filter(p => p.status === 'aguardando_pagamento').length;
       const badge = document.getElementById('ped-badge');
@@ -2430,7 +2656,7 @@ function escutarMeusPedidos() {
   unsubMeusPedidos = db.collection('pedidos')
     .where('userId', '==', usuario.uid)
     .onSnapshot(snap => {
-      meusPedidos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      meusPedidos = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.status !== 'rascunho');
       meusPedidos.sort((a, b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
       renderMeusPedidos();
     }, err => {
@@ -2560,7 +2786,7 @@ async function pagarPedidoExistente(pedidoId, btn) {
   let win = null;
   try {
     win = window.open('', '_blank');
-    if (win) win.document.write('<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#0d2b6b;"><p>Abrindo o pagamento...</p></body>');
+    if (win) { win.document.write(htmlCarregandoPagamento()); win.document.close(); }
   } catch (e) { win = null; }
 
   try {
@@ -2576,6 +2802,11 @@ async function pagarPedidoExistente(pedidoId, btn) {
     }
     const { linkPagamento } = await resp.json();
     if (!linkPagamento) throw new Error('o servidor não devolveu o link');
+
+    const ped = meusPedidos.find(x => x.id === pedidoId);
+    localStorage.setItem('zap_pagamento_pendente', JSON.stringify({
+      pedidoId, codigo: ped ? ped.codigo : '', em: Date.now()
+    }));
 
     if (win) win.location.href = linkPagamento;
     else window.location.href = linkPagamento;
@@ -2593,6 +2824,7 @@ let pedidos = [];
 let filtroPed = 'todos';
 
 const STATUS_LABEL = {
+  rascunho: '📝 Rascunho (pagamento não concluído)',
   aguardando_pagamento: '💳 Aguardando pagamento',
   pendente_aprovacao: '💳 Aguardando pagamento',   // pedidos antigos
   pendente_envio: '📦 Pendente de envio',
@@ -3494,6 +3726,10 @@ carregarConfig();
 carregarTema();
 carregarBanner();
 atualizarBadge();
+
+// Se o cliente está voltando do Mercado Pago, trata o resultado do pagamento.
+// Espera um instante para o Firebase e a interface estarem prontos.
+setTimeout(() => { tratarRetornoPagamento(); }, 900);
 </script>
 </body>
 </html>
