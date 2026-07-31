@@ -711,11 +711,6 @@
           <input type="text" id="c-nome" placeholder="Nome completo">
         </div>
         <div class="field">
-          <label>CPF ou CNPJ *</label>
-          <input type="text" id="c-cpf" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)">
-          <p style="font-size:.72rem; color:var(--text-muted); margin-top:4px;">Necessário para gerar o pagamento online (Pix, boleto ou cartão).</p>
-        </div>
-        <div class="field">
           <label>Seu telefone (opcional)</label>
           <input type="tel" id="c-fone" placeholder="(00) 00000-0000">
         </div>
@@ -738,7 +733,7 @@
         <div id="bloco-pagamento" style="display:none">
           <button class="btn-block btn-pay" onclick="pagarOnline(this)">💳 Pagar agora</button>
           <p style="font-size:.74rem; color:var(--text-muted); text-align:center; margin-top:8px; line-height:1.5;">
-            Cartão, Pix ou boleto pela Asaas.<br>Seu pedido entra na fila assim que o pagamento cair.
+            Cartão, Pix ou boleto pelo Mercado Pago.<br>Seu pedido entra na fila assim que o pagamento cair.
           </p>
           <div class="pay-sep">OU</div>
         </div>
@@ -1622,51 +1617,6 @@ function mascaraCEP(el) {
   }
 }
 
-// Formata o campo de CPF/CNPJ enquanto o cliente digita, alternando a máscara
-// automaticamente conforme a quantidade de dígitos (11 = CPF, 12+ = CNPJ).
-function mascaraCpfCnpj(el) {
-  let v = el.value.replace(/\D/g, '').slice(0, 14);
-  if (v.length <= 11) {
-    v = v.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-  } else {
-    v = v.replace(/(\d{2})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1/$2').replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-  }
-  el.value = v;
-}
-
-// Valida os dígitos verificadores de CPF ou CNPJ. Evita mandar um documento
-// claramente inválido para a Asaas (ela rejeitaria e só saberíamos depois).
-function cpfCnpjValido(doc) {
-  const v = String(doc).replace(/\D/g, '');
-  if (v.length === 11) {
-    if (/^(\d)\1{10}$/.test(v)) return false;
-    let soma = 0;
-    for (let i = 0; i < 9; i++) soma += Number(v[i]) * (10 - i);
-    let resto = (soma * 10) % 11;
-    if (resto === 10 || resto === 11) resto = 0;
-    if (resto !== Number(v[9])) return false;
-    soma = 0;
-    for (let i = 0; i < 10; i++) soma += Number(v[i]) * (11 - i);
-    resto = (soma * 10) % 11;
-    if (resto === 10 || resto === 11) resto = 0;
-    return resto === Number(v[10]);
-  }
-  if (v.length === 14) {
-    if (/^(\d)\1{13}$/.test(v)) return false;
-    const calc = (base) => {
-      const pesos = base.length === 12 ? [5,4,3,2,9,8,7,6,5,4,3,2] : [6,5,4,3,2,9,8,7,6,5,4,3,2];
-      let soma = 0;
-      for (let i = 0; i < base.length; i++) soma += Number(base[i]) * pesos[i];
-      const resto = soma % 11;
-      return resto < 2 ? 0 : 11 - resto;
-    };
-    const d1 = calc(v.slice(0, 12));
-    const d2 = calc(v.slice(0, 12) + d1);
-    return d1 === Number(v[12]) && d2 === Number(v[13]);
-  }
-  return false;
-}
-
 async function buscarCEP() {
   const cep = document.getElementById('c-cep').value.replace(/\D/g, '');
   const info = document.getElementById('cep-info');
@@ -1703,19 +1653,16 @@ function gerarCodigo() {
 function coletarPedido() {
   if (!carrinho.length) { toast('Carrinho vazio!'); return null; }
   const nome = document.getElementById('c-nome').value.trim();
-  const cpfCnpj = document.getElementById('c-cpf').value.replace(/\D/g, '');
   const fone = document.getElementById('c-fone').value.trim();
   const obs = document.getElementById('c-obs').value.trim();
   const endereco = document.getElementById('c-end').value.trim();
   if (!nome) { toast('⚠️ Digite seu nome!'); return null; }
-  if (!cpfCnpj) { toast('⚠️ Digite seu CPF ou CNPJ!'); return null; }
-  if (!cpfCnpjValido(cpfCnpj)) { toast('⚠️ CPF/CNPJ inválido. Confira os números.'); return null; }
   if (!endereco) { toast('⚠️ Digite o endereço de entrega!'); return null; }
 
   return {
     codigo: gerarCodigo(),
     cliente: {
-      nome, cpfCnpj, fone, endereco,
+      nome, fone, endereco,
       cep: document.getElementById('c-cep').value,
       cidade: cepDados?.localidade || '',
       uf: cepDados?.uf || ''
@@ -1803,11 +1750,11 @@ async function pagarOnline(btn) {
       userId: usuario ? usuario.uid : null,
       userEmail: usuario ? (usuario.email || '') : '',
       status: 'rascunho',
-      origem: 'asaas',
+      origem: 'mercadopago',
       criadoEm: firebase.firestore.FieldValue.serverTimestamp()
     });
 
-    // 2) O servidor reconfere os preços e devolve o link da cobrança na Asaas
+    // 2) O servidor reconfere os preços e devolve o link do checkout
     const resposta = await fetch(api + '/api/criar-preferencia', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1826,7 +1773,7 @@ async function pagarOnline(btn) {
     const { linkPagamento } = await resposta.json();
     if (!linkPagamento) throw new Error('o servidor não devolveu o link');
 
-    // Guarda a referência para reconhecer o retorno da Asaas.
+    // Guarda a referência para reconhecer o retorno do Mercado Pago.
     // O carrinho NÃO é esvaziado: só limpamos depois do pagamento confirmado.
     localStorage.setItem('zap_pagamento_pendente', JSON.stringify({
       pedidoId: doc.id, codigo: pedido.codigo, em: Date.now()
@@ -1844,21 +1791,28 @@ async function pagarOnline(btn) {
   }
 }
 
-/* ==================== RETORNO DA ASAAS ====================
-   A Asaas devolve o cliente para o site com ?pagamento=sucesso quando o
-   pagamento é confirmado automaticamente (cartão ou Pix — configurado no
-   "callback" da cobrança, no servidor). Boleto normalmente não confirma na
-   hora, então o cliente não é redirecionado de volta; nesse caso o pedido
-   só sai de "rascunho" quando o Webhook confirmar o pagamento. */
+/* ==================== RETORNO DO MERCADO PAGO ====================
+   O Mercado Pago devolve o cliente para o site com ?pagamento=sucesso,
+   ?pagamento=pendente ou ?pagamento=falha (configurado nas back_urls do servidor).
+   Também aceitamos os parâmetros que o próprio Mercado Pago acrescenta
+   (collection_status / status), para funcionar mesmo sem back_urls personalizadas. */
 async function tratarRetornoPagamento() {
   const url = new URL(window.location.href);
   const q = url.searchParams;
 
-  const resultado = q.get('pagamento');
+  let resultado = q.get('pagamento');
+  if (!resultado) {
+    const mp = q.get('collection_status') || q.get('status');
+    if (mp === 'approved') resultado = 'sucesso';
+    else if (mp === 'pending' || mp === 'in_process') resultado = 'pendente';
+    else if (mp === 'rejected' || mp === 'failure' || mp === 'null') resultado = 'falha';
+  }
   if (!resultado) return;
 
   // Limpa os parâmetros da barra de endereços
-  q.delete('pagamento');
+  ['pagamento','collection_status','status','collection_id','payment_id','preference_id',
+   'external_reference','payment_type','merchant_order_id','site_id','processing_mode',
+   'merchant_account_id'].forEach(p => q.delete(p));
   history.replaceState({}, '', url.pathname + (q.toString() ? '?' + q.toString() : ''));
 
   let ref = null;
@@ -1923,7 +1877,6 @@ function fecharAvisoPagamento() {
 async function enviarPedido(btn) {
   if (!carrinho.length) return toast('Carrinho vazio!');
   const nome = document.getElementById('c-nome').value.trim();
-  const cpfCnpj = document.getElementById('c-cpf').value.replace(/\D/g, '');
   const fone = document.getElementById('c-fone').value.trim();
   const obs = document.getElementById('c-obs').value.trim();
   const endereco = document.getElementById('c-end').value.trim();
@@ -1947,7 +1900,7 @@ async function enviarPedido(btn) {
     await db.collection('pedidos').add({
       codigo,
       cliente: {
-        nome, cpfCnpj, fone, endereco,
+        nome, fone, endereco,
         cep: document.getElementById('c-cep').value,
         cidade: cepDados?.localidade || '',
         uf: cepDados?.uf || ''
@@ -2962,7 +2915,7 @@ function renderPedidos() {
         ${(p.itens || []).map(i => `<div style="display:flex; justify-content:space-between; padding:2px 0;"><span>▪️ ${i.nome} <strong>x${i.qtd}</strong></span><span>${fmt(i.preco * i.qtd)}</span></div>`).join('')}
       </div>
       ${p.obs ? `<div style="font-size:.8rem; color:var(--text-muted); margin-top:6px;">📝 ${p.obs}</div>` : ''}
-      ${p.pagamento ? `<div style="font-size:.8rem; color:var(--text-muted); margin-top:6px;">💳 ${p.pagamento.metodo || 'Asaas'} · ${p.pagamento.status || '-'} · nº ${p.pagamento.id || '-'}</div>` : ''}
+      ${p.pagamento ? `<div style="font-size:.8rem; color:var(--text-muted); margin-top:6px;">💳 ${p.pagamento.metodo || 'Mercado Pago'} · ${p.pagamento.status || '-'} · nº ${p.pagamento.id || '-'}</div>` : ''}
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; flex-wrap:wrap; gap:8px;">
         <div style="font-size:.85rem; color:var(--text-muted)">
           <strong style="color:var(--primary); font-size:1rem;">Total ${fmt(p.total || 0)}</strong>
@@ -3773,7 +3726,7 @@ carregarTema();
 carregarBanner();
 atualizarBadge();
 
-// Se o cliente está voltando da Asaas, trata o resultado do pagamento.
+// Se o cliente está voltando do Mercado Pago, trata o resultado do pagamento.
 // Espera um instante para o Firebase e a interface estarem prontos.
 setTimeout(() => { tratarRetornoPagamento(); }, 900);
 </script>
