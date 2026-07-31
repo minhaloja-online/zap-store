@@ -50,7 +50,7 @@ console.log(`Firebase conectado ao projeto: ${chaveFirebase.project_id}`);
  *   Produção:           https://api.asaas.com/v3
  */
 const ASAAS_API_URL = (process.env.ASAAS_API_URL || 'https://api.asaas.com/v3').replace(/\/+$/, '');
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY;
+const ASAAS_API_KEY = (process.env.ASAAS_API_KEY || '').trim();
 // Token que você mesmo define e cadastra no painel da Asaas (Integrações > Webhooks
 // > Token de autenticação). Usado para confirmar que a chamada em /api/webhook
 // realmente veio da Asaas, e não de qualquer pessoa que descubra a URL.
@@ -383,7 +383,12 @@ app.get('/api/status', (req, res) => {
 const PORTA = process.env.PORT || 3000;
 app.listen(PORTA, () => {
   console.log(`Servidor rodando na porta ${PORTA}`);
+  console.log(`Asaas: usando ${ASAAS_API_URL}`);
+  if (!process.env.ASAAS_API_URL) {
+    console.warn('ASAAS_API_URL não definida — assumindo PRODUÇÃO. Se a sua chave é de Sandbox, defina https://api-sandbox.asaas.com/v3');
+  }
   if (!process.env.ASAAS_API_KEY) console.warn('Falta ASAAS_API_KEY no .env');
+  else if (process.env.ASAAS_API_KEY !== ASAAS_API_KEY) console.warn('ASAAS_API_KEY tinha espaço ou quebra de linha nas pontas — foi removido automaticamente, mas confira o valor no painel');
   if (!process.env.ASAAS_WEBHOOK_TOKEN) console.warn('Falta ASAAS_WEBHOOK_TOKEN no .env (webhook ficará sem verificação de origem)');
   if (!process.env.FIREBASE_SERVICE_ACCOUNT && !process.env.FIREBASE_SERVICE_ACCOUNT_PATH) console.warn('Falta a chave do Firebase');
 });
