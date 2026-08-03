@@ -93,6 +93,49 @@
   html[data-noite="1"] .pill.ok { background: var(--ok-bg); color: var(--ok-txt); }
   html[data-noite="1"] .dash-aviso { border-color: #5C4A22; color: var(--alerta-txt); }
 
+  /* Superfícies que têm cor clara fixa no CSS (não usam variável) e por isso
+     não acompanhavam o tema sozinhas. A regra precisa vir DEPOIS da definição
+     original ou empatar em especificidade — por isso a classe entra junto. */
+  html[data-noite="1"] .sidebar,
+  html[data-noite="1"] .user-menu,
+  html[data-noite="1"] .bottom-nav,
+  html[data-noite="1"] .modal,
+  html[data-noite="1"] .mp-fbtn,
+  html[data-noite="1"] .btn-google,
+  html[data-noite="1"] .cor-row input[type=color] { background: var(--card); }
+
+  html[data-noite="1"] .side-btn:hover { background: var(--surf-2); color: var(--marca-txt); }
+  html[data-noite="1"] .side-btn.active { background: var(--primary); color: #fff; }
+  html[data-noite="1"] .sf-limpar { background: var(--surf-2); color: var(--text-muted); }
+  html[data-noite="1"] .sf-limpar:hover { background: var(--surf-3); color: var(--text); }
+  html[data-noite="1"] .sf-group input,
+  html[data-noite="1"] .sf-group select,
+  html[data-noite="1"] .filter-group input,
+  html[data-noite="1"] .filter-group select,
+  html[data-noite="1"] .field input,
+  html[data-noite="1"] .field textarea,
+  html[data-noite="1"] .field select { background: var(--surf-2); color: var(--text); border-color: var(--border); }
+
+  html[data-noite="1"] .user-menu .um-head { background: var(--surf-2); }
+  html[data-noite="1"] .user-menu button:hover { background: var(--surf-2); }
+  html[data-noite="1"] .auth-tab { background: var(--surf-2); }
+  html[data-noite="1"] .btn-google:hover { background: var(--surf-2); }
+  html[data-noite="1"] .banner-item { background: var(--surf-2); }
+  html[data-noite="1"] .img-drop { background: var(--surf-2); }
+  html[data-noite="1"] .img-drop:hover { background: var(--surf-3); }
+  html[data-noite="1"] .qty-box button { background: var(--surf-2); color: var(--marca-txt); }
+  html[data-noite="1"] .pbox { background: var(--surf-2); }
+  html[data-noite="1"] .modal-img-main { background: var(--surf-2); }
+  html[data-noite="1"] .modal-close:hover { background: var(--surf-3); }
+  html[data-noite="1"] .nav-btn.active { background: var(--card); color: var(--marca-txt); }
+  html[data-noite="1"] .cli-comum { background: var(--surf-2); color: var(--text-muted); }
+  html[data-noite="1"] .mini-del { background: #3A1A18; color: #F0857A; }
+  html[data-noite="1"] .empty-state { background: var(--card); }
+  /* Etiquetas de atacado: âmbar sobre fundo escuro em vez de creme */
+  html[data-noite="1"] .atacado-tag { background: #3A2C14; color: #E8BE72; }
+  html[data-noite="1"] .pb-min,
+  html[data-noite="1"] .pb-eco { background: #4A3A18; color: #F0C572; }
+
   /* Botão de troca de tema no topo */
   .btn-noite {
     background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.28);
