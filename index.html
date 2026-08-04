@@ -1398,9 +1398,15 @@
                 <input type="text" id="tema-card-hex" style="flex:1" oninput="document.getElementById('tema-card').value=this.value; previewTema()">
               </div>
             </div>
-            <p style="font-size:.76rem; color:var(--text-muted); margin:-4px 0 12px;">
-              🌙 No <strong>modo noite</strong> estas três cores são ignoradas — a paleta escura entra no lugar para o texto continuar legível. Suas cores de marca e as fontes continuam valendo nos dois modos.
-            </p>
+            <div class="field" style="margin-top:.2rem">
+              <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; text-transform:none; letter-spacing:0;">
+                <input type="checkbox" id="tema-cor-noite" onchange="previewTema()" style="width:auto; margin-top:2px; flex-shrink:0;">
+                <span>🌙 Usar estas cores também no <strong>modo noite</strong>
+                  <small style="display:block">Desligado, o modo noite usa a paleta escura pronta. Ligado, valem as suas cores nos dois modos — confira se o texto continua legível.</small>
+                </span>
+              </label>
+              <p id="tema-aviso-contraste" class="msg err" style="display:none; margin-top:8px; font-size:.76rem;"></p>
+            </div>
               </div>
               <div class="cfg-bloco">
             <div class="cfg-secao">✍️ Textos</div>
@@ -1418,6 +1424,10 @@
                 <input type="text" id="tema-titulo-cor-hex" style="flex:1" oninput="document.getElementById('tema-titulo-cor').value=this.value; previewTema()">
               </div>
             </div>
+            <p style="font-size:.74rem; color:var(--text-muted); margin:-4px 0 14px;">
+              🌙 No modo noite estas duas cores só valem se você ligar a opção acima; senão o site usa tons claros prontos.
+            </p>
+
             <div class="field">
               <label>Fonte do texto</label>
               <select id="tema-fonte" onchange="previewTema()">
@@ -2835,7 +2845,7 @@ const TEMA_PADRAO = {
   lateral: '#ffffff', fundo: '#f4f6f9', card: '#ffffff',
   texto: '#1e2a35', tituloCor: '#0d2b6b',
   fonte: "'Segoe UI', system-ui, -apple-system, sans-serif",
-  fonteTitulo: '', fs: 16, raio: 12
+  fonteTitulo: '', fs: 16, raio: 12, corNoite: false
 };
 
 // Lista dos campos do formulário: id do input <-> chave salva no banco.
@@ -2847,7 +2857,7 @@ const TEMA_CAMPOS = [
   ['tema-lateral','lateral'], ['tema-fundo','fundo'], ['tema-card','card'],
   ['tema-texto','texto'], ['tema-titulo-cor','tituloCor'],
   ['tema-fonte','fonte'], ['tema-fonte-titulo','fonteTitulo'],
-  ['tema-fs','fs'], ['tema-raio','raio']
+  ['tema-fs','fs'], ['tema-raio','raio'], ['tema-cor-noite','corNoite']
 ];
 
 // Quão claro é um tom (0 = preto, 255 = branco). Serve para decidir se um texto
@@ -2902,15 +2912,16 @@ function aplicarTema(t) {
   raiz.setProperty('--topbar-txt', v('topoTxt'));
   raiz.setProperty('--linha-cor', v('linha'));
 
-  if (noite) {
-    // No escuro as superfícies são as da paleta noturna: as cores claras do
-    // lojista deixariam o texto ilegível. Só a marca e a tipografia continuam.
+  if (noite && !t.corNoite) {
+    // Opção desligada: no escuro valem as superfícies da paleta noturna, senão
+    // um fundo claro escolhido para o dia deixaria o texto ilegível à noite.
     ['--bg','--card','--text','--sidebar-bg'].forEach(k => raiz.removeProperty(k));
     // Título com a cor da marca clareada até dar para ler no fundo escuro
     let tit = v('tituloCor');
     while (brilho(tit) < 150) tit = clarear(tit, 30);
     raiz.setProperty('--marca-txt', tit);
   } else {
+    // Modo claro, ou modo noite com a opção ligada: mandam as cores do lojista.
     raiz.setProperty('--bg', v('fundo'));
     raiz.setProperty('--card', v('card'));
     raiz.setProperty('--sidebar-bg', v('lateral'));
@@ -2942,11 +2953,14 @@ function preencherFormTema() {
     const el = document.getElementById(id);
     if (!el) return;
     const val = (tema[chave] !== undefined && tema[chave] !== null) ? tema[chave] : TEMA_PADRAO[chave];
-    el.value = val;
+    // Caixa de marcar guarda o estado em .checked; os outros campos em .value
+    if (el.type === 'checkbox') el.checked = !!val;
+    else el.value = val;
     const hex = document.getElementById(id + '-hex');
     if (hex) hex.value = val;
   });
   atualizarRotulosTema();
+  checarContraste({ ...TEMA_PADRAO, ...tema });
   const prev = document.getElementById('tema-logo-prev');
   const logo = tema.logo || (typeof LOGO_B64 !== 'undefined' ? LOGO_B64 : '');
   if (logo) { prev.src = logo; prev.style.display = 'inline'; document.getElementById('tema-logo-txt').style.display = 'none'; }
@@ -2965,16 +2979,40 @@ function lerFormTema() {
   TEMA_CAMPOS.forEach(([id, chave]) => {
     const el = document.getElementById(id);
     if (!el) return;
-    dados[chave] = (chave === 'fs' || chave === 'raio' || chave === 'linhaH') ? Number(el.value) : el.value;
+    if (el.type === 'checkbox') dados[chave] = el.checked;
+    else if (chave === 'fs' || chave === 'raio' || chave === 'linhaH') dados[chave] = Number(el.value);
+    else dados[chave] = el.value;
     const hex = document.getElementById(id + '-hex');
     if (hex) hex.value = el.value;
   });
   return dados;
 }
 
+// Avisa quando texto e fundo ficam com brilho parecido: aí a leitura sofre,
+// mesmo que cada cor sozinha pareça boa. Não bloqueia nada, só alerta.
+function checarContraste(d) {
+  const el = document.getElementById('tema-aviso-contraste');
+  if (!el) return;
+  const pares = [
+    ['texto', 'fundo', 'o texto comum e o fundo do site'],
+    ['texto', 'card', 'o texto comum e os cartões'],
+    ['tituloCor', 'card', 'os títulos e os cartões'],
+    ['topoTxt', 'topo', 'o texto e o fundo da barra superior']
+  ];
+  const ruins = pares
+    .filter(([a, b]) => Math.abs(brilho(d[a]) - brilho(d[b])) < 60)
+    .map(([, , rotulo]) => rotulo);
+
+  if (!ruins.length) { el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.textContent = '⚠️ Pouco contraste entre ' + ruins.join('; entre ') +
+    '. Do jeito que está, esse texto vai ficar difícil de ler.';
+}
+
 function previewTema() {
   const dados = lerFormTema();
   atualizarRotulosTema();
+  checarContraste({ ...TEMA_PADRAO, ...dados });
   aplicarTema({ ...tema, ...dados, logo: logoTemaNova || tema.logo });
 }
 
