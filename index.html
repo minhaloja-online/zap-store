@@ -1619,7 +1619,10 @@
           <input type="text" id="pdv-cliente" placeholder="Nome de quem comprou">
         </div>
 
+        <div id="pdv-encomenda" class="dash-aviso" style="display:none; margin:.9rem 0 .2rem; font-size:.8rem;"></div>
+
         <button class="btn-block btn-pdf" id="pdv-finalizar" onclick="pdvFinalizar()" disabled>Finalizar venda</button>
+        <button class="btn-block btn-ghost" id="pdv-pdf" onclick="pdvGerarPDF()" disabled>📄 Gerar PDF do pedido</button>
         <button class="btn-block btn-ghost" onclick="pdvLimpar()">Cancelar venda</button>
       </div>
     </div>
@@ -3631,14 +3634,17 @@ function pdvBuscar() {
   }
   alvo.innerHTML = lista.map(p => {
     const q = Number(p.estoque) || 0;
+    // Estoque zerado NÃO bloqueia a venda: o cliente encomenda e aguarda chegar.
+    // Só avisamos, para o atendente saber que aquele item vai ser encomenda.
+    const meta = q > 0 ? `${q} em estoque` : 'sem estoque — vira encomenda';
     return `
     <div class="pdv-res">
       ${getCapa(p) ? `<img src="${getCapa(p)}" alt="">` : ''}
       <div class="pdv-res-info">
         <div class="pdv-res-nome">${p.nome}</div>
-        <div class="pdv-res-meta">${p.categoria || '—'} · ${q} em estoque</div>
+        <div class="pdv-res-meta" ${q <= 0 ? 'style="color:var(--alerta-txt);font-weight:700"' : ''}>${p.categoria || '—'} · ${meta}</div>
         <div class="pdv-var">
-          <button class="pdv-vbtn" ${q <= 0 ? 'disabled' : ''} onclick="pdvAdicionar('${p.id}')">
+          <button class="pdv-vbtn" onclick="pdvAdicionar('${p.id}')">
             + Adicionar <span class="pdv-vqtd">(${q})</span></button>
         </div>
       </div>
@@ -3651,27 +3657,34 @@ function pdvBuscar() {
 function pdvAdicionar(id) {
   const p = produtos.find(x => x.id === id);
   if (!p) return;
-  const disponivel = Number(p.estoque) || 0;
   const existente = pdvItens.find(i => i.id === id);
-  const jaTem = existente ? existente.qtd : 0;
-  if (jaTem + 1 > disponivel) return toast(`⚠️ Só há ${disponivel} em estoque desse produto.`);
-
   if (existente) existente.qtd += 1;
   else pdvItens.push({ id, nome: p.nome, preco: Number(p.preco) || 0, qtd: 1 });
+
+  // Avisa quando a quantidade passa do estoque, mas deixa vender: o item vira
+  // encomenda e o cliente espera a reposição.
+  const disponivel = Number(p.estoque) || 0;
+  const pedida = (existente ? existente.qtd : 1);
+  if (pedida > disponivel) {
+    const faltam = pedida - disponivel;
+    toast(`📦 ${faltam} un. de "${p.nome}" ${faltam > 1 ? 'ficam' : 'fica'} como encomenda.`);
+  }
   pdvAtualizar();
 }
 
 function pdvQtd(idx, delta) {
   const it = pdvItens[idx];
   if (!it) return;
-  if (delta > 0) {
-    const p = produtos.find(x => x.id === it.id);
-    const disponivel = p ? (Number(p.estoque) || 0) : 0;
-    if (it.qtd + delta > disponivel) return toast(`⚠️ Só há ${disponivel} em estoque desse produto.`);
-  }
   it.qtd += delta;
   if (it.qtd <= 0) pdvItens.splice(idx, 1);
   pdvAtualizar();
+}
+
+// Quantas unidades deste item não têm estoque para pronta-entrega
+function pdvFaltando(it) {
+  const p = produtos.find(x => x.id === it.id);
+  const disponivel = p ? (Number(p.estoque) || 0) : 0;
+  return Math.max(it.qtd - disponivel, 0);
 }
 
 function pdvRemover(idx) { pdvItens.splice(idx, 1); pdvAtualizar(); }
@@ -3700,9 +3713,13 @@ function pdvAtualizar() {
     alvo.innerHTML = pdvItens.map((i, idx) => {
       const unit = pdvPrecoItem(i);
       const noAtacado = unit < i.preco;
+      const falta = pdvFaltando(i);
+      const notas = [];
+      if (noAtacado) notas.push('preço de atacado aplicado');
+      if (falta) notas.push(`⚠️ ${falta} un. em encomenda`);
       return `
       <div class="pdv-item">
-        <span class="pdv-item-nome">${i.nome}${noAtacado ? '<small>preço de atacado aplicado</small>' : ''}</span>
+        <span class="pdv-item-nome">${i.nome}${notas.length ? `<small>${notas.join(' · ')}</small>` : ''}</span>
         <span class="qty-box" style="display:inline-flex">
           <button onclick="pdvQtd(${idx},-1)">−</button><span>${i.qtd}</span><button onclick="pdvQtd(${idx},1)">+</button>
         </span>
@@ -3734,8 +3751,21 @@ function pdvAtualizar() {
     } else elTroco.textContent = '';
   } else elTroco.textContent = '';
 
+  // Se algum item passou do estoque, a venda inteira é marcada como encomenda
+  const totalFalta = pdvItens.reduce((soma, i) => soma + pdvFaltando(i), 0);
+  const boxEnc = document.getElementById('pdv-encomenda');
+  if (boxEnc) {
+    boxEnc.style.display = totalFalta ? 'flex' : 'none';
+    boxEnc.innerHTML = totalFalta
+      ? `<span>📦</span><div><strong>${totalFalta} unidade(s) em encomenda.</strong>
+         O pedido fica como <strong>pendente de envio</strong> para você entregar quando a mercadoria chegar.</div>`
+      : '';
+  }
+
   document.getElementById('pdv-finalizar').disabled = (nItens === 0);
   document.getElementById('pdv-finalizar').textContent = nItens ? `Finalizar venda · ${fmt(total)}` : 'Finalizar venda';
+  const btnPdf = document.getElementById('pdv-pdf');
+  if (btnPdf) btnPdf.disabled = (nItens === 0);
 }
 
 function pdvLimpar() {
@@ -3773,14 +3803,20 @@ async function pdvFinalizar() {
       batch.update(db.collection('produtos').doc(it.id), { estoque: novoEstoque });
     }
 
+    // Venda com item faltando não foi entregue por completo: entra na fila de
+    // envio para você não perder o rastro da encomenda.
+    const totalFalta = pdvItens.reduce((soma, i) => soma + pdvFaltando(i), 0);
+
     const ref = db.collection('pedidos').doc();
     batch.set(ref, {
       codigo,
       canal: 'loja',                 // separa a venda de balcão da venda pelo site
-      status: 'enviado',             // entregue na hora, não entra na fila de envio
+      status: totalFalta ? 'pendente_envio' : 'enviado',
+      encomenda: totalFalta > 0,
+      unidadesEncomendadas: totalFalta,
       cliente: { nome: cliente, fone: '', cpfCnpj: '', endereco: 'Retirada na loja' },
-      obs: 'Venda presencial no balcão',
-      itens: pdvItens.map(i => ({ id: i.id, nome: i.nome, preco: pdvPrecoItem(i), qtd: i.qtd })),
+      obs: 'Venda presencial no balcão' + (totalFalta ? ` — ${totalFalta} un. em encomenda` : ''),
+      itens: pdvItens.map(i => ({ id: i.id, nome: i.nome, preco: pdvPrecoItem(i), qtd: i.qtd, encomendado: pdvFaltando(i) })),
       subtotal: Math.round(sub * 100) / 100,
       desconto: Math.round(desc * 100) / 100,
       total: Math.round(total * 100) / 100,
@@ -3794,7 +3830,18 @@ async function pdvFinalizar() {
 
     const recebido = parseFloat(document.getElementById('pdv-recebido').value) || 0;
     const troco = (pdvFormaPag === 'Dinheiro' && recebido > total) ? recebido - total : 0;
-    toast(`✅ Venda ${codigo} registrada!` + (troco ? ` Troco: ${fmt(troco)}` : ''));
+    toast(`✅ Venda ${codigo} registrada!` + (troco ? ` Troco: ${fmt(troco)}` : '') +
+          (totalFalta ? ' Ficou em pendente de envio (encomenda).' : ''));
+
+    // Congela os dados antes de limpar a tela, para o PDF sair com a venda certa
+    const vendaFeita = {
+      codigo,
+      itens: pdvItens.map(i => ({ ...i, unit: pdvPrecoItem(i), encomendado: pdvFaltando(i) })),
+      sub, desconto: desc, forma: pdvFormaPag, cliente
+    };
+    if (confirm('Venda ' + codigo + ' registrada!\n\nGerar o PDF do pedido para o cliente?')) {
+      pdvGerarPDF(vendaFeita);
+    }
 
     pdvItens = [];
     document.getElementById('pdv-desconto').value = 0;
@@ -3810,6 +3857,93 @@ async function pdvFinalizar() {
   } finally {
     pdvAtualizar();
   }
+}
+
+/* ==================== DASHBOARD ==================== */
+/* ---------- PDF do pedido de balcão ---------- */
+/*
+ * Comprovante para o cliente levar. Pode ser gerado ANTES de finalizar
+ * (vale como orçamento) ou depois da venda — no caso de encomenda, é o papel
+ * que o cliente guarda para voltar buscar a mercadoria.
+ */
+function pdvGerarPDF(dadosVenda) {
+  if (!dadosVenda && !pdvItens.length) return toast('⚠️ Nenhum item na venda.');
+  toast('⏳ Gerando PDF...');
+
+  const v = dadosVenda || {
+    codigo: null,
+    itens: pdvItens.map(i => ({ ...i, unit: pdvPrecoItem(i), encomendado: pdvFaltando(i) })),
+    sub: pdvSubtotal(),
+    desconto: Math.min(Math.max(parseFloat(document.getElementById('pdv-desconto').value) || 0, 0), pdvSubtotal()),
+    forma: pdvFormaPag,
+    cliente: (document.getElementById('pdv-cliente').value || '').trim()
+  };
+  const total = v.sub - v.desconto;
+  const totalFalta = v.itens.reduce((soma, i) => soma + (i.encomendado || 0), 0);
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  cabecalhoPDF(doc, v.codigo ? 'Comprovante de Venda' : 'Orçamento');
+
+  doc.setFontSize(13).setFont(undefined, 'bold').setTextColor(40);
+  doc.text(v.codigo ? 'Venda ' + v.codigo : 'Orçamento (venda não finalizada)', 14, 40);
+  doc.setFontSize(9.5).setFont(undefined, 'normal').setTextColor(90);
+  doc.text('Venda presencial na loja', 14, 46);
+  doc.text('Data: ' + new Date().toLocaleString('pt-BR'), 120, 46);
+  doc.setDrawColor(225).line(14, 51, 196, 51);
+
+  let y = 59;
+  doc.setTextColor(40).setFontSize(10.5).setFont(undefined, 'bold');
+  doc.text('Cliente', 14, y);
+  doc.setFont(undefined, 'normal').setFontSize(9.5);
+  y += 7; doc.text(v.cliente || 'Não informado', 14, y);
+  y += 6; doc.text('Forma de pagamento: ' + v.forma, 14, y);
+  y += 10;
+
+  doc.autoTable({
+    startY: y,
+    head: [['Produto', 'Qtd', 'Preço un.', 'Subtotal', 'Situação']],
+    body: v.itens.map(i => [
+      i.nome, i.qtd, fmt(i.unit), fmt(i.unit * i.qtd),
+      i.encomendado ? i.encomendado + ' un. em encomenda' : 'Entregue'
+    ]),
+    headStyles: { fillColor: [13, 43, 107], fontSize: 9.5 },
+    bodyStyles: { fontSize: 9.5 },
+    columnStyles: {
+      1: { halign: 'center', cellWidth: 14 },
+      2: { halign: 'right', cellWidth: 24 },
+      3: { halign: 'right', cellWidth: 24 },
+      4: { fontSize: 8.5, cellWidth: 38 }
+    }
+  });
+
+  let fy = doc.lastAutoTable.finalY + 10;
+  const linha = (rot, val, negrito) => {
+    doc.setFont(undefined, negrito ? 'bold' : 'normal').setFontSize(negrito ? 12 : 10);
+    doc.setTextColor(negrito ? 20 : 90);
+    doc.text(rot, 130, fy);
+    doc.text(val, 196, fy, { align: 'right' });
+    fy += negrito ? 9 : 6;
+  };
+  linha('Subtotal', fmt(v.sub));
+  if (v.desconto > 0) linha('Desconto', '- ' + fmt(v.desconto));
+  linha('TOTAL', fmt(total), true);
+
+  if (totalFalta) {
+    fy += 4;
+    doc.setFillColor(253, 243, 221).rect(14, fy - 5, 182, 20, 'F');
+    doc.setFontSize(9.5).setFont(undefined, 'bold').setTextColor(122, 84, 16);
+    doc.text('ENCOMENDA - ' + totalFalta + ' unidade(s) a entregar', 18, fy + 1);
+    doc.setFont(undefined, 'normal').setFontSize(8.5);
+    doc.text('Guarde este comprovante. Avisaremos assim que a mercadoria chegar.', 18, fy + 8);
+  }
+
+  doc.setFontSize(8.5).setTextColor(130).setFont(undefined, 'normal');
+  doc.text('Documento gerado em ' + new Date().toLocaleString('pt-BR') + ' - ' + (config.nome || 'Zap Store'),
+           14, doc.internal.pageSize.height - 10);
+
+  doc.save((v.codigo ? 'venda-' + v.codigo : 'orcamento-' + Date.now()) + '.pdf');
+  toast('📄 PDF gerado!');
 }
 
 /* ==================== DASHBOARD ==================== */
