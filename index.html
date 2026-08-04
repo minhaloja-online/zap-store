@@ -679,13 +679,23 @@
   body.modo-pdv .side-title.filtros-titulo { display:none !important; }
 
   /* ===== PDV — venda presencial ===== */
-  .pdv-topo { display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; margin-bottom:1.1rem; flex-wrap:wrap; }
+  /* O PDV é tela de operação: menos respiro no topo, mais área útil */
+  #pdv { margin-top:-.9rem; }
+  .pdv-topo { display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; margin-bottom:.9rem; flex-wrap:wrap; }
   .pdv-titulo { font-family: var(--fonte-titulo); font-size:1.7rem; color:var(--marca-txt); }
   .pdv-sub { font-size:.82rem; color:var(--text-muted); margin-top:4px; }
   .pdv-grid { display:grid; grid-template-columns:1.25fr .9fr; gap:1.2rem; align-items:start; }
   @media (max-width:900px) { .pdv-grid { grid-template-columns:1fr; } }
 
-  .pdv-resultados { display:flex; flex-direction:column; gap:.5rem; max-height:62vh; overflow-y:auto; }
+  .pdv-filtros { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; margin-bottom:.7rem; }
+  @media (max-width:560px) { .pdv-filtros { grid-template-columns:1fr; } }
+  .pdv-res-topo { display:flex; justify-content:space-between; align-items:center; gap:.6rem;
+                  font-size:.78rem; color:var(--text-muted); font-weight:700;
+                  border-top:1px solid var(--border); padding-top:.6rem; margin-bottom:.6rem; }
+  .pdv-limpar { background:none; border:none; font-family:inherit; font-size:.78rem; font-weight:700;
+                color:var(--text-muted); cursor:pointer; padding:.2rem .4rem; border-radius:6px; }
+  .pdv-limpar:hover { background:var(--surf-2); color:var(--marca-txt); }
+  .pdv-resultados { display:flex; flex-direction:column; gap:.5rem; max-height:58vh; overflow-y:auto; }
   .pdv-res { display:flex; gap:.7rem; align-items:center; padding:.55rem .65rem; border:1px solid var(--border);
              border-radius:10px; background:var(--bg); }
   .pdv-res img { width:48px; height:48px; object-fit:cover; border-radius:7px; flex-shrink:0; }
@@ -1577,10 +1587,35 @@
     <div class="pdv-grid">
       <!-- Coluna 1: busca e escolha do produto -->
       <div class="panel pdv-busca-col">
-        <div class="field" style="margin-bottom:.8rem">
+        <div class="field" style="margin-bottom:.7rem">
           <label>Buscar produto</label>
           <input type="text" id="pdv-busca" placeholder="Nome ou categoria — comece a digitar" oninput="pdvBuscar()" autocomplete="off">
         </div>
+
+        <div class="pdv-filtros">
+          <div class="field" style="margin-bottom:0">
+            <label>Categoria</label>
+            <select id="pdv-categoria" onchange="pdvBuscar()"><option value="">Todas</option></select>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Ordenar por</label>
+            <select id="pdv-ordem" onchange="pdvBuscar()">
+              <option value="disp">Disponíveis primeiro</option>
+              <option value="nome">Nome (A-Z)</option>
+              <option value="nome-desc">Nome (Z-A)</option>
+              <option value="preco">Menor preço</option>
+              <option value="preco-desc">Maior preço</option>
+              <option value="estoque-desc">Maior estoque</option>
+              <option value="estoque">Menor estoque</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="pdv-res-topo">
+          <span id="pdv-contagem"></span>
+          <button class="pdv-limpar" onclick="pdvLimparFiltros()">✕ Limpar filtros</button>
+        </div>
+
         <div id="pdv-resultados" class="pdv-resultados"></div>
       </div>
 
@@ -1920,7 +1955,7 @@ function montarCategorias() {
   const cats = [...new Set(produtos.map(p => p.categoria).filter(Boolean))].sort();
   const opcoes = '<option value="">Todas</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join('');
   // preenche o filtro do celular e o da barra lateral
-  ['f-categoria', 'sf-categoria'].forEach(id => {
+  ['f-categoria', 'sf-categoria', 'pdv-categoria'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     const atual = sel.value;
@@ -3631,6 +3666,8 @@ function pdvAbrir() {
   document.getElementById('pdv-hora').textContent =
     new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   document.getElementById('pdv-busca').value = '';
+  const cat = document.getElementById('pdv-categoria');
+  if (cat) cat.value = '';
   pdvBuscar();
   pdvAtualizar();
   setTimeout(() => { const b = document.getElementById('pdv-busca'); if (b) b.focus(); }, 120);
@@ -3639,16 +3676,48 @@ function pdvAbrir() {
 /* ---------- Busca ---------- */
 function pdvBuscar() {
   const termo = (document.getElementById('pdv-busca').value || '').toLowerCase().trim();
+  const categoria = document.getElementById('pdv-categoria')?.value || '';
+  const ordem = document.getElementById('pdv-ordem')?.value || 'disp';
   const alvo = document.getElementById('pdv-resultados');
+
   let lista = produtos.filter(p => p.ativo !== false);
+  if (categoria) lista = lista.filter(p => (p.categoria || '') === categoria);
   if (termo) {
     lista = lista.filter(p => p.nome.toLowerCase().includes(termo) ||
                               (p.categoria || '').toLowerCase().includes(termo));
   }
-  lista = lista.sort((a, b) => a.nome.localeCompare(b.nome)).slice(0, 30);
+
+  const est = p => Number(p.estoque) || 0;
+  const preco = p => Number(p.preco) || 0;
+  const porNome = (a, b) => a.nome.localeCompare(b.nome);
+  const ordenar = {
+    // Padrão do balcão: quem tem estoque aparece primeiro, porque é o que dá
+    // para entregar na hora. Empate resolve por nome.
+    'disp':         (a, b) => (est(b) > 0) - (est(a) > 0) || porNome(a, b),
+    'nome':         porNome,
+    'nome-desc':    (a, b) => porNome(b, a),
+    'preco':        (a, b) => preco(a) - preco(b) || porNome(a, b),
+    'preco-desc':   (a, b) => preco(b) - preco(a) || porNome(a, b),
+    'estoque-desc': (a, b) => est(b) - est(a) || porNome(a, b),
+    'estoque':      (a, b) => est(a) - est(b) || porNome(a, b)
+  }[ordem] || porNome;
+
+  const achados = lista.sort(ordenar);
+  const LIMITE = 40;
+  lista = achados.slice(0, LIMITE);
+
+  // Contagem ajuda a saber se vale refinar a busca
+  const cont = document.getElementById('pdv-contagem');
+  if (cont) {
+    cont.textContent = achados.length
+      ? (achados.length > LIMITE
+          ? `Mostrando ${LIMITE} de ${achados.length} produtos`
+          : `${achados.length} produto${achados.length > 1 ? 's' : ''}`)
+      : '';
+  }
 
   if (!lista.length) {
-    alvo.innerHTML = '<div class="pdv-vazio">Nenhum produto encontrado.</div>';
+    alvo.innerHTML = '<div class="pdv-vazio">Nenhum produto encontrado com esses filtros.</div>';
     return;
   }
   alvo.innerHTML = lista.map(p => {
@@ -3673,6 +3742,14 @@ function pdvBuscar() {
 }
 
 /* ---------- Itens da venda ---------- */
+function pdvLimparFiltros() {
+  document.getElementById('pdv-busca').value = '';
+  document.getElementById('pdv-categoria').value = '';
+  document.getElementById('pdv-ordem').value = 'disp';
+  pdvBuscar();
+  document.getElementById('pdv-busca').focus();
+}
+
 function pdvAdicionar(id) {
   const p = produtos.find(x => x.id === id);
   if (!p) return;
