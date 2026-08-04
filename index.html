@@ -356,6 +356,14 @@
 
   /* ===== CONFIGURAÇÕES: paleta e uploads ===== */
   .cfg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1rem; }
+  /* Aparência tem muitos campos: ocupa a linha inteira e espalha as seções
+     em colunas, em vez de virar uma tira comprida com o lado direito vazio. */
+  .cfg-grid .panel-largo { grid-column: 1 / -1; order: 2; }
+  .cfg-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0 1.4rem; align-items: start; }
+  .cfg-bloco { min-width: 0; }
+  /* A primeira seção de cada coluna não precisa do respiro de cima */
+  .cfg-bloco > .cfg-secao { margin-top: .4rem; }
+  .cfg-bloco .field:last-child { margin-bottom: .2rem; }
   .cor-row { display: flex; align-items: center; gap: 10px; }
   .cor-row input[type=color] { width: 46px; height: 38px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: #fff; cursor: pointer; }
   .banner-item { display: flex; gap: 10px; align-items: center; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 8px; margin-bottom: 8px; }
@@ -1293,7 +1301,7 @@
             <button class="btn-block btn-pdf" onclick="salvarConfig()">Salvar dados da loja</button>
           </div>
 
-          <div class="panel">
+          <div class="panel panel-largo">
             <h3>🎨 Aparência do Site</h3>
             <div class="msg" id="tema-msg"></div>
 
@@ -1310,6 +1318,8 @@
               💡 As mudanças aparecem na hora, só para você. Elas só valem para os clientes depois que você clicar em <strong>Salvar aparência</strong>.
             </p>
 
+            <div class="cfg-cols">
+              <div class="cfg-bloco">
             <div class="cfg-secao">🎨 Cores da marca</div>
             <div class="field">
               <label>Cor principal <small>botões, abas e destaques</small></label>
@@ -1325,7 +1335,8 @@
                 <input type="text" id="tema-cor2-hex" style="flex:1" oninput="document.getElementById('tema-cor2').value=this.value; previewTema()">
               </div>
             </div>
-
+              </div>
+              <div class="cfg-bloco">
             <div class="cfg-secao">🔝 Barra superior</div>
             <div class="field">
               <label>Estilo do fundo</label>
@@ -1359,7 +1370,8 @@
               <label>Espessura da linha <span id="tema-linha-h-val" class="cfg-val">3px</span></label>
               <input type="range" id="tema-linha-h" min="0" max="10" step="1" value="3" oninput="previewTema()">
             </div>
-
+              </div>
+              <div class="cfg-bloco">
             <div class="cfg-secao">🗂️ Painel lateral e fundo</div>
             <div class="field">
               <label>Cor do painel da esquerda</label>
@@ -1385,7 +1397,8 @@
             <p style="font-size:.76rem; color:var(--text-muted); margin:-4px 0 12px;">
               🌙 No <strong>modo noite</strong> estas três cores são ignoradas — a paleta escura entra no lugar para o texto continuar legível. Suas cores de marca e as fontes continuam valendo nos dois modos.
             </p>
-
+              </div>
+              <div class="cfg-bloco">
             <div class="cfg-secao">✍️ Textos</div>
             <div class="field">
               <label>Cor do texto comum</label>
@@ -1435,11 +1448,14 @@
               <input type="range" id="tema-fs" min="13" max="20" step="1" value="16" oninput="previewTema()">
               <p style="font-size:.74rem; color:var(--text-muted); margin-top:4px;">Aumenta ou diminui o site inteiro de uma vez, mantendo as proporções.</p>
             </div>
-
+              </div>
+              <div class="cfg-bloco">
             <div class="cfg-secao">📐 Formato</div>
             <div class="field">
               <label>Arredondamento das bordas <span id="tema-raio-val" class="cfg-val">12px</span></label>
               <input type="range" id="tema-raio" min="0" max="24" step="2" value="12" oninput="previewTema()">
+            </div>
+              </div>
             </div>
 
             <button class="btn-block btn-pdf" onclick="salvarTema()">Salvar aparência</button>
