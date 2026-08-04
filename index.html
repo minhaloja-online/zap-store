@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ZAP STORE - Catálogo de Produtos</title>
+<title>Zap Store</title>
 <link rel="icon" type="image/png" id="favicon" href="">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -47,7 +47,14 @@
     --shadow: 0 2px 10px rgba(20, 40, 60, 0.08);
     --shadow-hover: 0 8px 24px rgba(20, 40, 60, 0.14);
     --topbar-h: 66px;
+    --topbar-bg: linear-gradient(135deg, #081c4a 0%, #0d2b6b 55%, #1d4ec9 100%);
+    --topbar-txt: #ffffff;
+    --sidebar-bg: #ffffff;
+    --linha-cor: var(--electric);
+    --linha-h: 3px;
     --fonte: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --fonte-titulo: var(--fonte);
+    --fs-base: 16px;
   }
 
   /* ===== MODO NOITE =====
@@ -91,6 +98,7 @@
   html[data-noite="1"] .delta.down { background: #3A1A18; color: #F0857A; }
   html[data-noite="1"] .pill.crit { background: #3A1A18; color: #F0857A; }
   html[data-noite="1"] .pill.ok { background: var(--ok-bg); color: var(--ok-txt); }
+  html[data-noite="1"] { --sidebar-bg: var(--card); }
   html[data-noite="1"] .dash-aviso { border-color: #5C4A22; color: var(--alerta-txt); }
 
   /* Superfícies que têm cor clara fixa no CSS (não usam variável) e por isso
@@ -147,15 +155,15 @@
   .btn-noite svg { width: 19px; height: 19px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
   @media (max-width: 900px) { .btn-noite { width: 34px; height: 34px; } .btn-noite svg { width: 17px; height: 17px; } }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { overflow-x: hidden; }
+  html { overflow-x: hidden; font-size: var(--fs-base); }
   body { font-family: var(--fonte); background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; width: 100%; }
 
 
   /* ===== TOPBAR (logo + busca + carrinho + usuário) ===== */
   .topbar {
-    background: linear-gradient(135deg, #081c4a 0%, #0d2b6b 55%, #1d4ec9 100%);
-    border-bottom: 3px solid var(--electric);
-    color: #fff; padding: 0.55rem 1.2rem;
+    background: var(--topbar-bg);
+    border-bottom: var(--linha-h) solid var(--linha-cor);
+    color: var(--topbar-txt); padding: 0.55rem 1.2rem;
     display: flex; align-items: center; gap: 1rem;
     position: fixed; top: 0; left: 0; right: 0; z-index: 300; box-shadow: 0 2px 12px rgba(0,0,0,0.2);
   }
@@ -207,7 +215,7 @@
   /* ===== SHELL: sidebar + conteúdo ===== */
   .app-shell { display: block; padding-top: var(--topbar-h); }
   .sidebar {
-    width: 232px; flex-shrink: 0; background: #fff; border-right: 1px solid var(--border);
+    width: 232px; flex-shrink: 0; background: var(--sidebar-bg); border-right: 1px solid var(--border);
     padding: 1.1rem .8rem; position: fixed; top: var(--topbar-h); left: 0; height: calc(100vh - var(--topbar-h)); overflow-y: auto; z-index: 200;
   }
   .side-title { font-size: .68rem; font-weight: 800; color: var(--text-muted); letter-spacing: .8px; text-transform: uppercase; padding: 0 .6rem; margin: .9rem 0 .45rem; }
@@ -216,7 +224,7 @@
     background: none; border: none; border-radius: 9px; cursor: pointer; font-family: inherit;
     font-size: .92rem; font-weight: 600; color: var(--text); text-align: left; transition: all .18s; position: relative;
   }
-  .side-btn:hover { background: #eef3fa; color: var(--primary); }
+  .side-btn:hover { background: #eef3fa; color: var(--marca-txt); }
   .side-btn.active { background: var(--primary); color: #fff; }
   .side-btn .s-ico { font-size: 1.1rem; width: 22px; text-align: center; }
   .side-badge { margin-left: auto; background: var(--danger); color: #fff; border-radius: 20px; font-size: .68rem; font-weight: 800; padding: 1px 7px; }
@@ -248,7 +256,7 @@
       display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .68rem; font-weight: 700;
       color: var(--text-muted); position: relative;
     }
-    .bottom-nav button.active { color: var(--primary); }
+    .bottom-nav button.active { color: var(--marca-txt); }
     .bottom-nav .bn-ico { font-size: 1.22rem; }
     .bottom-nav .side-badge { position: absolute; top: 2px; right: 22%; margin: 0; }
     body { padding-bottom: 62px; }
@@ -259,7 +267,7 @@
   .precos-wrap.duplo { grid-template-columns: 1fr 1fr; }
   .pbox { border: 1px solid var(--border); border-radius: 10px; padding: .55rem .6rem; background: #fbfcfe; position: relative; }
   .pbox .pb-lbl { font-size: .62rem; font-weight: 800; letter-spacing: .7px; color: var(--text-muted); text-transform: uppercase; }
-  .pbox .pb-val { font-size: 1.18rem; font-weight: 800; color: var(--primary); line-height: 1.15; margin-top: 2px; }
+  .pbox .pb-val { font-size: 1.18rem; font-weight: 800; color: var(--marca-txt); line-height: 1.15; margin-top: 2px; }
   .pbox .pb-val small { font-size: .62em; font-weight: 700; }
   .pbox.atacado { background: linear-gradient(160deg, #fff8e8, #fffdf7); border-color: #e8c777; }
   .pbox.atacado .pb-lbl { color: #a37400; }
@@ -362,7 +370,7 @@
   /* ===== FILTROS MEUS PEDIDOS ===== */
   .mp-filtros { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: .9rem; }
   .mp-fbtn { padding: .5rem .95rem; border-radius: 8px; border: 1px solid var(--border); background: #fff; cursor: pointer; font-family: inherit; font-weight: 700; font-size: .84rem; color: var(--text-muted); transition: all .2s; }
-  .mp-fbtn:hover { border-color: var(--primary-light); color: var(--primary); }
+  .mp-fbtn:hover { border-color: var(--primary-light); color: var(--marca-txt); }
   .mp-fbtn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
   .st-aguardando_pagamento { background:#e6f1ff; color:#12508f; }
 
@@ -416,7 +424,7 @@
     transition: all .25s; position: relative; font-weight: 500;
   }
   .nav-btn:hover { background: rgba(255,255,255,0.28); }
-  .nav-btn.active { background: #fff; color: var(--primary); font-weight: 700; }
+  .nav-btn.active { background: #fff; color: var(--marca-txt); font-weight: 700; }
   .cart-badge {
     position: absolute; top: -8px; right: -8px; background: var(--danger); color: #fff;
     border-radius: 50%; min-width: 21px; height: 21px; font-size: 0.72rem; font-weight: 700;
@@ -428,7 +436,7 @@
   .section.active { display: block; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(6px);} to { opacity: 1; transform: none;} }
 
-  .page-title { font-size: 1.6rem; color: var(--primary); margin-bottom: 0.3rem; font-weight: 800; border-left: 4px solid var(--electric); padding-left: 12px; }
+  .page-title { font-family: var(--fonte-titulo); font-size: 1.6rem; color: var(--marca-txt); margin-bottom: 0.3rem; font-weight: 800; border-left: 4px solid var(--electric); padding-left: 12px; }
   .page-sub { color: var(--text-muted); margin-bottom: 1.4rem; font-size: 0.95rem; }
 
   /* ===== FILTROS ===== */
@@ -475,12 +483,12 @@
   .product-name { font-weight: 700; font-size: 1rem; color: var(--text); line-height: 1.3; }
   .product-desc { font-size: 0.83rem; color: var(--text-muted); margin: 6px 0 10px; line-height: 1.45; flex: 1;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .product-price { font-size: 1.35rem; font-weight: 800; color: var(--primary); margin-bottom: 10px; }
+  .product-price { font-size: 1.35rem; font-weight: 800; color: var(--marca-txt); margin-bottom: 10px; }
   .product-price small { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
   .atacado-tag { display:inline-flex; align-items:center; gap:4px; background:#fff4e0; color:#a35c00; font-size:.72rem; font-weight:800; padding:3px 9px; border-radius:20px; margin-top:-4px; margin-bottom:10px; }
   .qty-row { display: flex; gap: 8px; }
   .qty-box { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-  .qty-box button { border: none; background: #f1f4f8; width: 32px; height: 38px; font-size: 1.1rem; cursor: pointer; font-weight: 700; color: var(--primary); }
+  .qty-box button { border: none; background: #f1f4f8; width: 32px; height: 38px; font-size: 1.1rem; cursor: pointer; font-weight: 700; color: var(--marca-txt); }
   .qty-box button:hover { background: #e4e9f0; }
   .qty-box span { width: 34px; text-align: center; font-weight: 700; font-size: 0.95rem; }
   .btn-add {
@@ -506,15 +514,15 @@
   .cart-item-info { flex: 1; min-width: 0; }
   .cart-item-info h4 { font-size: 0.95rem; margin-bottom: 2px; }
   .cart-item-info .unit { font-size: 0.8rem; color: var(--text-muted); }
-  .cart-item-total { font-weight: 800; color: var(--primary); font-size: 1rem; white-space: nowrap; }
+  .cart-item-total { font-weight: 800; color: var(--marca-txt); font-size: 1rem; white-space: nowrap; }
   .btn-remove { background: none; border: none; color: var(--danger); font-size: 1.15rem; cursor: pointer; padding: 6px; }
   .cart-summary {
     background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
     padding: 1.3rem; box-shadow: var(--shadow); position: sticky; top: 85px;
   }
-  .cart-summary h3 { color: var(--primary); margin-bottom: 1rem; font-size: 1.1rem; }
+  .cart-summary h3 { font-family: var(--fonte-titulo); color: var(--marca-txt); margin-bottom: 1rem; font-size: 1.1rem; }
   .sum-row { display: flex; justify-content: space-between; font-size: 0.92rem; margin: 7px 0; color: var(--text-muted); }
-  .sum-row.total { font-size: 1.25rem; font-weight: 800; color: var(--primary); border-top: 2px solid var(--border); padding-top: 12px; margin-top: 12px; }
+  .sum-row.total { font-size: 1.25rem; font-weight: 800; color: var(--marca-txt); border-top: 2px solid var(--border); padding-top: 12px; margin-top: 12px; }
   .field { margin-bottom: 0.85rem; }
   .field label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; }
   .field input, .field textarea, .field select {
@@ -538,7 +546,7 @@
   .admin-layout { display: grid; grid-template-columns: 1fr 1.4fr; gap: 1.5rem; align-items: start; }
   .admin-layout > div { min-width: 0; }
   .panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.4rem; box-shadow: var(--shadow); min-width: 0; }
-  .panel h3 { color: var(--primary); margin-bottom: 1.1rem; font-size: 1.1rem; }
+  .panel h3 { font-family: var(--fonte-titulo); color: var(--marca-txt); margin-bottom: 1.1rem; font-size: 1.1rem; }
   .img-drop {
     border: 2px dashed #b9c6d2; border-radius: 10px; padding: 1.3rem; text-align: center; cursor: pointer;
     color: var(--text-muted); font-size: 0.88rem; transition: all .2s; background: #fafcfe;
@@ -573,7 +581,7 @@
   .admin-table td { padding: 9px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
   .admin-table img { width: 42px; height: 42px; border-radius: 8px; object-fit: cover; }
   .mini-btn { border: none; border-radius: 7px; padding: 6px 10px; font-size: 0.78rem; font-weight: 700; cursor: pointer; margin-right: 4px; }
-  .mini-edit { background: #e8f0f8; color: var(--primary); }
+  .mini-edit { background: #e8f0f8; color: var(--marca-txt); }
   .mini-del { background: #fdecea; color: var(--danger); }
   .login-box { max-width: 400px; margin: 3rem auto; }
 
@@ -607,7 +615,7 @@
   .dash-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:1.15rem 1.25rem; box-shadow:var(--shadow); }
   .dash-card.wide { grid-column:1/-1; }
   .dash-h { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:1rem; }
-  .dash-h h4 { font-size:1.02rem; color: var(--marca-txt); }
+  .dash-h h4 { font-family: var(--fonte-titulo); font-size:1.02rem; color: var(--marca-txt); }
   .dash-h .hint { font-size:.72rem; color:var(--text-muted); font-weight:600; }
 
   .barra-item { margin-bottom:.85rem; }
@@ -660,7 +668,7 @@
 
   /* ===== PDV — venda presencial ===== */
   .pdv-topo { display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; margin-bottom:1.1rem; flex-wrap:wrap; }
-  .pdv-titulo { font-size:1.7rem; color:var(--marca-txt); }
+  .pdv-titulo { font-family: var(--fonte-titulo); font-size:1.7rem; color:var(--marca-txt); }
   .pdv-sub { font-size:.82rem; color:var(--text-muted); margin-top:4px; }
   .pdv-grid { display:grid; grid-template-columns:1.25fr .9fr; gap:1.2rem; align-items:start; }
   @media (max-width:900px) { .pdv-grid { grid-template-columns:1fr; } }
@@ -697,9 +705,16 @@
   .pdv-pag:hover { border-color:var(--primary-light); }
   .pdv-pag.active { background:var(--primary); border-color:var(--primary); color:#fff; }
 
+  .cfg-secao { font-size:.76rem; font-weight:800; letter-spacing:.6px; text-transform:uppercase;
+               color:var(--marca-txt); border-bottom:1px solid var(--border);
+               padding-bottom:6px; margin:1.4rem 0 .9rem; }
+  .cfg-val { float:right; font-weight:800; color:var(--marca-txt); text-transform:none; letter-spacing:0; }
+  .field label small { font-weight:500; text-transform:none; letter-spacing:0; color:var(--text-muted); }
+  .field input[type=range] { width:100%; accent-color:var(--primary); cursor:pointer; }
+
   .admin-tabs { display:flex; gap:8px; margin-bottom:1.2rem; flex-wrap:wrap; }
   .admin-tab { padding:.6rem 1.1rem; border-radius:8px; border:1px solid var(--border); background:#fff; cursor:pointer; font-weight:700; font-size:.88rem; color:var(--text-muted); transition:all .2s; }
-  .admin-tab:hover { border-color:var(--primary-light); color:var(--primary); }
+  .admin-tab:hover { border-color:var(--primary-light); color:var(--marca-txt); }
   .admin-tab.active { background:var(--primary); color:#fff; border-color:var(--primary); }
   .filtros-ped { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:1rem; }
   .filtros-pedidos-topo { display:flex; gap:1rem; flex-wrap:wrap; align-items:end; margin-bottom:.9rem; }
@@ -1186,7 +1201,7 @@
               <tbody id="import-tbody"></tbody>
             </table>
           </div>
-          <p id="import-progresso" style="display:none; font-size:.88rem; font-weight:700; color:var(--primary); margin-top:.8rem;"></p>
+          <p id="import-progresso" style="display:none; font-size:.88rem; font-weight:700; color:var(--marca-txt); margin-top:.8rem;"></p>
           <div style="display:flex; gap:10px; margin-top:1rem; flex-wrap:wrap;">
             <button class="btn-block btn-pdf" id="btn-confirmar-import" onclick="confirmarImportacao()" style="flex:1; min-width:200px; margin-top:0;">✔ Confirmar Importação</button>
             <button class="btn-clear" onclick="cancelarImportacao()">✕ Cancelar</button>
@@ -1264,7 +1279,7 @@
             <div class="msg" id="cfg-msg"></div>
             <div class="field">
               <label>Nome da loja</label>
-              <input type="text" id="cfg-nome" placeholder="ZapStore">
+              <input type="text" id="cfg-nome" placeholder="Zap Store">
             </div>
             <div class="field">
               <label>WhatsApp do vendedor (com DDD)</label>
@@ -1291,31 +1306,142 @@
               <input type="file" id="tema-logo-file" accept="image/*" style="display:none" onchange="carregarLogoTema(this)">
             </div>
 
+            <p style="font-size:.78rem; color:var(--text-muted); margin:-6px 0 12px;">
+              💡 As mudanças aparecem na hora, só para você. Elas só valem para os clientes depois que você clicar em <strong>Salvar aparência</strong>.
+            </p>
+
+            <div class="cfg-secao">🎨 Cores da marca</div>
             <div class="field">
-              <label>Cor principal</label>
+              <label>Cor principal <small>botões, abas e destaques</small></label>
               <div class="cor-row">
                 <input type="color" id="tema-cor1" value="#0d2b6b" oninput="previewTema()">
                 <input type="text" id="tema-cor1-hex" style="flex:1" oninput="document.getElementById('tema-cor1').value=this.value; previewTema()">
               </div>
             </div>
             <div class="field">
-              <label>Cor de destaque</label>
+              <label>Cor de destaque <small>detalhes e barras dos gráficos</small></label>
               <div class="cor-row">
                 <input type="color" id="tema-cor2" value="#2e9bff" oninput="previewTema()">
                 <input type="text" id="tema-cor2-hex" style="flex:1" oninput="document.getElementById('tema-cor2').value=this.value; previewTema()">
               </div>
             </div>
+
+            <div class="cfg-secao">🔝 Barra superior</div>
             <div class="field">
-              <label>Fonte do site</label>
+              <label>Estilo do fundo</label>
+              <select id="tema-topo-estilo" onchange="previewTema()">
+                <option value="degrade">Degradê (a partir da cor principal)</option>
+                <option value="solido">Cor sólida</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Cor da barra</label>
+              <div class="cor-row">
+                <input type="color" id="tema-topo" value="#0d2b6b" oninput="previewTema()">
+                <input type="text" id="tema-topo-hex" style="flex:1" oninput="document.getElementById('tema-topo').value=this.value; previewTema()">
+              </div>
+            </div>
+            <div class="field">
+              <label>Cor do texto da barra</label>
+              <div class="cor-row">
+                <input type="color" id="tema-topo-txt" value="#ffffff" oninput="previewTema()">
+                <input type="text" id="tema-topo-txt-hex" style="flex:1" oninput="document.getElementById('tema-topo-txt').value=this.value; previewTema()">
+              </div>
+            </div>
+            <div class="field">
+              <label>Cor da linha em destaque</label>
+              <div class="cor-row">
+                <input type="color" id="tema-linha" value="#2e9bff" oninput="previewTema()">
+                <input type="text" id="tema-linha-hex" style="flex:1" oninput="document.getElementById('tema-linha').value=this.value; previewTema()">
+              </div>
+            </div>
+            <div class="field">
+              <label>Espessura da linha <span id="tema-linha-h-val" class="cfg-val">3px</span></label>
+              <input type="range" id="tema-linha-h" min="0" max="10" step="1" value="3" oninput="previewTema()">
+            </div>
+
+            <div class="cfg-secao">🗂️ Painel lateral e fundo</div>
+            <div class="field">
+              <label>Cor do painel da esquerda</label>
+              <div class="cor-row">
+                <input type="color" id="tema-lateral" value="#ffffff" oninput="previewTema()">
+                <input type="text" id="tema-lateral-hex" style="flex:1" oninput="document.getElementById('tema-lateral').value=this.value; previewTema()">
+              </div>
+            </div>
+            <div class="field">
+              <label>Cor de fundo do site</label>
+              <div class="cor-row">
+                <input type="color" id="tema-fundo" value="#f4f6f9" oninput="previewTema()">
+                <input type="text" id="tema-fundo-hex" style="flex:1" oninput="document.getElementById('tema-fundo').value=this.value; previewTema()">
+              </div>
+            </div>
+            <div class="field">
+              <label>Cor dos cartões <small>produtos, painéis e caixas</small></label>
+              <div class="cor-row">
+                <input type="color" id="tema-card" value="#ffffff" oninput="previewTema()">
+                <input type="text" id="tema-card-hex" style="flex:1" oninput="document.getElementById('tema-card').value=this.value; previewTema()">
+              </div>
+            </div>
+            <p style="font-size:.76rem; color:var(--text-muted); margin:-4px 0 12px;">
+              🌙 No <strong>modo noite</strong> estas três cores são ignoradas — a paleta escura entra no lugar para o texto continuar legível. Suas cores de marca e as fontes continuam valendo nos dois modos.
+            </p>
+
+            <div class="cfg-secao">✍️ Textos</div>
+            <div class="field">
+              <label>Cor do texto comum</label>
+              <div class="cor-row">
+                <input type="color" id="tema-texto" value="#1e2a35" oninput="previewTema()">
+                <input type="text" id="tema-texto-hex" style="flex:1" oninput="document.getElementById('tema-texto').value=this.value; previewTema()">
+              </div>
+            </div>
+            <div class="field">
+              <label>Cor dos títulos</label>
+              <div class="cor-row">
+                <input type="color" id="tema-titulo-cor" value="#0d2b6b" oninput="previewTema()">
+                <input type="text" id="tema-titulo-cor-hex" style="flex:1" oninput="document.getElementById('tema-titulo-cor').value=this.value; previewTema()">
+              </div>
+            </div>
+            <div class="field">
+              <label>Fonte do texto</label>
               <select id="tema-fonte" onchange="previewTema()">
                 <option value="'Segoe UI', system-ui, -apple-system, sans-serif">Padrão (Segoe UI)</option>
                 <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
                 <option value="Verdana, Geneva, sans-serif">Verdana</option>
                 <option value="Georgia, 'Times New Roman', serif">Georgia (serifada)</option>
-                <option value="'Courier New', monospace">Courier</option>
+                <option value="'Times New Roman', Times, serif">Times New Roman (serifada)</option>
+                <option value="'Courier New', monospace">Courier (máquina de escrever)</option>
                 <option value="Tahoma, sans-serif">Tahoma</option>
+                <option value="'Arial Black', Arial, sans-serif">Arial Black (bem grossa)</option>
+                <option value="Impact, Haettenschweiler, sans-serif">Impact (condensada)</option>
               </select>
             </div>
+            <div class="field">
+              <label>Fonte dos títulos</label>
+              <select id="tema-fonte-titulo" onchange="previewTema()">
+                <option value="">Mesma do texto</option>
+                <option value="'Segoe UI', system-ui, -apple-system, sans-serif">Padrão (Segoe UI)</option>
+                <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
+                <option value="Verdana, Geneva, sans-serif">Verdana</option>
+                <option value="Georgia, 'Times New Roman', serif">Georgia (serifada)</option>
+                <option value="'Times New Roman', Times, serif">Times New Roman (serifada)</option>
+                <option value="'Courier New', monospace">Courier (máquina de escrever)</option>
+                <option value="Tahoma, sans-serif">Tahoma</option>
+                <option value="'Arial Black', Arial, sans-serif">Arial Black (bem grossa)</option>
+                <option value="Impact, Haettenschweiler, sans-serif">Impact (condensada)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Tamanho da letra <span id="tema-fs-val" class="cfg-val">16px</span></label>
+              <input type="range" id="tema-fs" min="13" max="20" step="1" value="16" oninput="previewTema()">
+              <p style="font-size:.74rem; color:var(--text-muted); margin-top:4px;">Aumenta ou diminui o site inteiro de uma vez, mantendo as proporções.</p>
+            </div>
+
+            <div class="cfg-secao">📐 Formato</div>
+            <div class="field">
+              <label>Arredondamento das bordas <span id="tema-raio-val" class="cfg-val">12px</span></label>
+              <input type="range" id="tema-raio" min="0" max="24" step="2" value="12" oninput="previewTema()">
+            </div>
+
             <button class="btn-block btn-pdf" onclick="salvarTema()">Salvar aparência</button>
             <button class="btn-block btn-ghost" onclick="restaurarTema()">↺ Restaurar padrão</button>
           </div>
@@ -1549,7 +1675,7 @@
 
       <button class="btn-block btn-pdf" id="btn-conta" onclick="submeterConta()">Entrar</button>
       <p style="text-align:center; margin-top:.7rem;">
-        <button id="btn-esqueci" onclick="recuperarSenha()" style="background:none;border:none;color:var(--primary);font-size:.82rem;cursor:pointer;font-family:inherit;text-decoration:underline;">Esqueci minha senha</button>
+        <button id="btn-esqueci" onclick="recuperarSenha()" style="background:none;border:none;color:var(--marca-txt);font-size:.82rem;cursor:pointer;font-family:inherit;text-decoration:underline;">Esqueci minha senha</button>
       </p>
     </div>
   </div>
@@ -1560,7 +1686,7 @@
   <div class="modal" style="max-width:420px">
     <button class="modal-close" onclick="fecharPerfil()">✕</button>
     <div style="padding:1.6rem 1.5rem;">
-      <h3 style="text-align:center; color:var(--primary); margin-bottom:1.2rem;">Meu Perfil</h3>
+      <h3 style="text-align:center; color:var(--marca-txt); margin-bottom:1.2rem;">Meu Perfil</h3>
       <div style="text-align:center; margin-bottom:1.2rem;">
         <img id="perfil-foto-prev" class="avatar-lg" style="display:none">
         <div id="perfil-foto-ph" class="avatar-lg" style="display:flex; align-items:center; justify-content:center; font-size:2.4rem; background:#eef2f7; margin:0 auto;">👤</div>
@@ -1581,7 +1707,7 @@
   <div class="modal" style="max-width:440px">
     <div style="padding:2rem 1.6rem; text-align:center;">
       <div id="ap-icone" style="font-size:3.4rem; line-height:1; margin-bottom:.7rem;"></div>
-      <h2 id="ap-titulo" style="color:var(--primary); font-size:1.3rem; margin-bottom:.8rem;"></h2>
+      <h2 id="ap-titulo" style="color:var(--marca-txt); font-size:1.3rem; margin-bottom:.8rem;"></h2>
       <p id="ap-texto" style="color:var(--text-muted); font-size:.95rem; line-height:1.6;"></p>
       <button class="btn-block btn-pdf" style="margin-top:1.4rem" onclick="fecharAvisoPagamento()">Entendi</button>
     </div>
@@ -1649,6 +1775,8 @@ function aplicarNoite(ativa, salvar) {
 
 function alternarNoite() {
   aplicarNoite(!noiteAtiva(), true);
+  // O tema depende do modo: recalcula cor de título e superfícies
+  if (typeof aplicarTema === 'function' && typeof tema !== 'undefined') aplicarTema(tema);
 }
 
 function iniciarNoite() {
@@ -2679,14 +2807,86 @@ function processarImagem(file, largura, altura, qualidade) {
 let tema = {};
 let logoTemaNova = null;
 
-const TEMA_PADRAO = { logo: '', cor1: '#0d2b6b', cor2: '#2e9bff', fonte: "'Segoe UI', system-ui, -apple-system, sans-serif" };
+const TEMA_PADRAO = {
+  logo: '',
+  cor1: '#0d2b6b', cor2: '#2e9bff',
+  topoEstilo: 'degrade', topo: '#0d2b6b', topoTxt: '#ffffff',
+  linha: '#2e9bff', linhaH: 3,
+  lateral: '#ffffff', fundo: '#f4f6f9', card: '#ffffff',
+  texto: '#1e2a35', tituloCor: '#0d2b6b',
+  fonte: "'Segoe UI', system-ui, -apple-system, sans-serif",
+  fonteTitulo: '', fs: 16, raio: 12
+};
+
+// Lista dos campos do formulário: id do input <-> chave salva no banco.
+// Ter isso em um lugar só evita esquecer um campo ao salvar ou ao preencher.
+const TEMA_CAMPOS = [
+  ['tema-cor1','cor1'], ['tema-cor2','cor2'],
+  ['tema-topo-estilo','topoEstilo'], ['tema-topo','topo'], ['tema-topo-txt','topoTxt'],
+  ['tema-linha','linha'], ['tema-linha-h','linhaH'],
+  ['tema-lateral','lateral'], ['tema-fundo','fundo'], ['tema-card','card'],
+  ['tema-texto','texto'], ['tema-titulo-cor','tituloCor'],
+  ['tema-fonte','fonte'], ['tema-fonte-titulo','fonteTitulo'],
+  ['tema-fs','fs'], ['tema-raio','raio']
+];
+
+// Quão claro é um tom (0 = preto, 255 = branco). Serve para decidir se um texto
+// escuro ainda dá para ler sobre o fundo em que ele foi colocado.
+function brilho(hex) {
+  const n = parseInt(String(hex || '').replace('#',''), 16);
+  if (!isFinite(n)) return 128;
+  return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+}
+
+function escurecer(hex, pct) {
+  const n = parseInt(String(hex).replace('#',''), 16);
+  const r = Math.max(0, (n >> 16) - pct);
+  const g = Math.max(0, ((n >> 8) & 255) - pct);
+  const b = Math.max(0, (n & 255) - pct);
+  return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+}
 
 function aplicarTema(t) {
   const raiz = document.documentElement.style;
-  raiz.setProperty('--primary', t.cor1 || TEMA_PADRAO.cor1);
-  raiz.setProperty('--electric', t.cor2 || TEMA_PADRAO.cor2);
-  raiz.setProperty('--primary-light', clarear(t.cor1 || TEMA_PADRAO.cor1, 28));
-  raiz.setProperty('--fonte', t.fonte || TEMA_PADRAO.fonte);
+  const v = k => (t[k] !== undefined && t[k] !== '' && t[k] !== null) ? t[k] : TEMA_PADRAO[k];
+  const noite = document.documentElement.getAttribute('data-noite') === '1';
+
+  const cor1 = v('cor1'), cor2 = v('cor2');
+  raiz.setProperty('--primary', cor1);
+  raiz.setProperty('--electric', cor2);
+  raiz.setProperty('--primary-light', clarear(cor1, 28));
+
+  // Fontes e medidas valem nos dois modos
+  raiz.setProperty('--fonte', v('fonte'));
+  raiz.setProperty('--fonte-titulo', t.fonteTitulo || v('fonte'));
+  raiz.setProperty('--fs-base', v('fs') + 'px');
+  raiz.setProperty('--radius', v('raio') + 'px');
+  raiz.setProperty('--linha-h', v('linhaH') + 'px');
+
+  // Barra superior: sólida ou degradê a partir da cor escolhida
+  const topo = v('topo');
+  raiz.setProperty('--topbar-bg', v('topoEstilo') === 'solido'
+    ? topo
+    : `linear-gradient(135deg, ${escurecer(topo, 40)} 0%, ${topo} 55%, ${clarear(topo, 60)} 100%)`);
+  raiz.setProperty('--topbar-txt', v('topoTxt'));
+  raiz.setProperty('--linha-cor', v('linha'));
+
+  if (noite) {
+    // No escuro as superfícies são as da paleta noturna: as cores claras do
+    // lojista deixariam o texto ilegível. Só a marca e a tipografia continuam.
+    ['--bg','--card','--text','--sidebar-bg'].forEach(k => raiz.removeProperty(k));
+    // Título com a cor da marca clareada até dar para ler no fundo escuro
+    let tit = v('tituloCor');
+    while (brilho(tit) < 150) tit = clarear(tit, 30);
+    raiz.setProperty('--marca-txt', tit);
+  } else {
+    raiz.setProperty('--bg', v('fundo'));
+    raiz.setProperty('--card', v('card'));
+    raiz.setProperty('--sidebar-bg', v('lateral'));
+    raiz.setProperty('--text', v('texto'));
+    raiz.setProperty('--marca-txt', v('tituloCor'));
+  }
+
   const logo = t.logo || (typeof LOGO_B64 !== 'undefined' ? LOGO_B64 : '');
   ['logo-nav','logo-login','logo-conta'].forEach(id => {
     const el = document.getElementById(id);
@@ -2694,14 +2894,6 @@ function aplicarTema(t) {
   });
   const fav = document.getElementById('favicon');
   if (fav && logo) fav.href = logo;
-}
-
-function clarear(hex, pct) {
-  const n = parseInt(String(hex).replace('#',''), 16);
-  const r = Math.min(255, (n >> 16) + pct);
-  const g = Math.min(255, ((n >> 8) & 255) + pct);
-  const b = Math.min(255, (n & 255) + pct);
-  return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
 }
 
 function carregarTema() {
@@ -2712,24 +2904,47 @@ function carregarTema() {
   }, e => console.error('tema:', e));
 }
 
+// Espelha o valor do seletor de cor no campo de texto ao lado, e vice-versa
 function preencherFormTema() {
-  const c1 = document.getElementById('tema-cor1'); if (!c1) return;
-  c1.value = tema.cor1 || TEMA_PADRAO.cor1;
-  document.getElementById('tema-cor1-hex').value = tema.cor1 || TEMA_PADRAO.cor1;
-  document.getElementById('tema-cor2').value = tema.cor2 || TEMA_PADRAO.cor2;
-  document.getElementById('tema-cor2-hex').value = tema.cor2 || TEMA_PADRAO.cor2;
-  document.getElementById('tema-fonte').value = tema.fonte || TEMA_PADRAO.fonte;
+  if (!document.getElementById('tema-cor1')) return;
+  TEMA_CAMPOS.forEach(([id, chave]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const val = (tema[chave] !== undefined && tema[chave] !== null) ? tema[chave] : TEMA_PADRAO[chave];
+    el.value = val;
+    const hex = document.getElementById(id + '-hex');
+    if (hex) hex.value = val;
+  });
+  atualizarRotulosTema();
   const prev = document.getElementById('tema-logo-prev');
   const logo = tema.logo || (typeof LOGO_B64 !== 'undefined' ? LOGO_B64 : '');
   if (logo) { prev.src = logo; prev.style.display = 'inline'; document.getElementById('tema-logo-txt').style.display = 'none'; }
 }
 
+function atualizarRotulosTema() {
+  const par = [['tema-fs','tema-fs-val','px'], ['tema-raio','tema-raio-val','px'], ['tema-linha-h','tema-linha-h-val','px']];
+  par.forEach(([id, alvo, suf]) => {
+    const el = document.getElementById(id), lbl = document.getElementById(alvo);
+    if (el && lbl) lbl.textContent = el.value + suf;
+  });
+}
+
+function lerFormTema() {
+  const dados = {};
+  TEMA_CAMPOS.forEach(([id, chave]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    dados[chave] = (chave === 'fs' || chave === 'raio' || chave === 'linhaH') ? Number(el.value) : el.value;
+    const hex = document.getElementById(id + '-hex');
+    if (hex) hex.value = el.value;
+  });
+  return dados;
+}
+
 function previewTema() {
-  const c1 = document.getElementById('tema-cor1').value;
-  const c2 = document.getElementById('tema-cor2').value;
-  document.getElementById('tema-cor1-hex').value = c1;
-  document.getElementById('tema-cor2-hex').value = c2;
-  aplicarTema({ ...tema, cor1: c1, cor2: c2, fonte: document.getElementById('tema-fonte').value, logo: logoTemaNova || tema.logo });
+  const dados = lerFormTema();
+  atualizarRotulosTema();
+  aplicarTema({ ...tema, ...dados, logo: logoTemaNova || tema.logo });
 }
 
 async function carregarLogoTema(input) {
@@ -2744,11 +2959,7 @@ async function carregarLogoTema(input) {
 
 async function salvarTema() {
   const msg = document.getElementById('tema-msg');
-  const dados = {
-    cor1: document.getElementById('tema-cor1').value,
-    cor2: document.getElementById('tema-cor2').value,
-    fonte: document.getElementById('tema-fonte').value
-  };
+  const dados = lerFormTema();
   if (logoTemaNova) dados.logo = logoTemaNova;
   try {
     await db.collection('config').doc('tema').set(dados, { merge: true });
@@ -2759,7 +2970,7 @@ async function salvarTema() {
 }
 
 async function restaurarTema() {
-  if (!confirm('Restaurar as cores, fonte e logo padrão?')) return;
+  if (!confirm('Restaurar todas as cores, fontes, tamanhos e a logo para o padrão?')) return;
   try {
     await db.collection('config').doc('tema').set({ ...TEMA_PADRAO, logo: '' });
     logoTemaNova = null;
@@ -3218,7 +3429,7 @@ function renderMeusPedidos() {
     <div class="meu-pedido">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
         <div>
-          <strong style="font-size:1.02rem; color:var(--primary)">${p.codigo}</strong>
+          <strong style="font-size:1.02rem; color:var(--marca-txt)">${p.codigo}</strong>
           <span class="status-badge st-${statusReal}">${STATUS_LABEL[p.status] || p.status}</span>
         </div>
         <span style="font-size:.8rem; color:var(--text-muted)">${data}</span>
@@ -3228,7 +3439,7 @@ function renderMeusPedidos() {
       </div>
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:.6rem;">
         <span style="font-size:.82rem; color:var(--text-muted)">${p.cliente?.endereco ? '🏠 ' + p.cliente.endereco : ''}</span>
-        <strong style="color:var(--primary); font-size:1.05rem;">${fmt(p.total || 0)}</strong>
+        <strong style="color:var(--marca-txt); font-size:1.05rem;">${fmt(p.total || 0)}</strong>
       </div>
       ${timeline}
       ${btnPagar}
@@ -4064,7 +4275,7 @@ function renderPedidos() {
     <div class="pedido-card">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
         <div>
-          <strong style="font-size:1.05rem; color:var(--primary)">${p.codigo}</strong>
+          <strong style="font-size:1.05rem; color:var(--marca-txt)">${p.codigo}</strong>
           <span class="status-badge st-${p.status}">${STATUS_LABEL[p.status] || p.status}</span>
           ${p.canal === 'loja' ? '<span class="pill ok">🏪 Venda na loja</span>' : ''}
         </div>
@@ -4083,10 +4294,10 @@ function renderPedidos() {
       ${p.pagamento ? `<div style="font-size:.8rem; color:var(--text-muted); margin-top:6px;">💳 ${p.pagamento.metodo || 'Asaas'} · ${p.pagamento.status || '-'} · nº ${p.pagamento.id || '-'}</div>` : ''}
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; flex-wrap:wrap; gap:8px;">
         <div style="font-size:.85rem; color:var(--text-muted)">
-          <strong style="color:var(--primary); font-size:1rem;">Total ${fmt(p.total || 0)}</strong>
+          <strong style="color:var(--marca-txt); font-size:1rem;">Total ${fmt(p.total || 0)}</strong>
         </div>
         <div>
-          <button class="mini-btn" style="background:#eef1f5; color:var(--primary)" onclick="exportarPedidoPDF('${p.id}')">📄 PDF</button>
+          <button class="mini-btn" style="background:#eef1f5; color:var(--marca-txt)" onclick="exportarPedidoPDF('${p.id}')">📄 PDF</button>
           ${acoes}
         </div>
       </div>
@@ -4885,11 +5096,11 @@ function carregarConfig() {
   db.collection('config').doc('loja').onSnapshot(doc => {
     if (doc.exists) {
       config = doc.data();
-      document.getElementById('store-name').textContent = config.nome || 'ZapStore';
+      document.getElementById('store-name').textContent = config.nome || 'Zap Store';
       document.getElementById('cfg-nome').value = config.nome || '';
       document.getElementById('cfg-whats').value = config.whats || '';
       document.getElementById('cfg-api').value = config.api || '';
-      document.title = (config.nome || 'ZapStore') + ' - Catálogo de Produtos';
+      document.title = config.nome || 'Zap Store';
     }
     atualizarBotaoPagamento();
   });
@@ -4898,7 +5109,7 @@ function carregarConfig() {
 function salvarConfig() {
   const msg = document.getElementById('cfg-msg');
   db.collection('config').doc('loja').set({
-    nome: document.getElementById('cfg-nome').value.trim() || 'ZapStore',
+    nome: document.getElementById('cfg-nome').value.trim() || 'Zap Store',
     whats: document.getElementById('cfg-whats').value.trim(),
     api: normalizarApi(document.getElementById('cfg-api').value)
   }, { merge: true }).then(() => {
