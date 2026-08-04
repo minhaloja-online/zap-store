@@ -4758,12 +4758,10 @@ function cabecalhoPDF(doc, subtitulo) {
   }
   doc.setTextColor(255).setFontSize(16).setFont(undefined, 'bold');
   doc.text(config.nome || 'ZAP STORE', 38, 13);
-  doc.setFontSize(9).setFont(undefined, 'normal');
-  doc.text(subtitulo, 38, 19);
-  // Contato e CNPJ ficam à direita, para não empurrar o subtítulo
-  doc.setFontSize(8.5);
-  doc.text('Contato: ' + PDF_CONTATO, 196, 13, { align: 'right' });
-  doc.text('CNPJ: ' + PDF_CNPJ, 196, 19, { align: 'right' });
+  // Contato e CNPJ logo abaixo do nome da loja, no lugar do antigo subtítulo
+  doc.setFontSize(8.5).setFont(undefined, 'normal');
+  doc.text('Contato: ' + PDF_CONTATO, 38, 19.5);
+  doc.text('CNPJ: ' + PDF_CNPJ, 38, 24.5);
   doc.setTextColor(40);
 }
 
