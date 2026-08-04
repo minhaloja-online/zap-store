@@ -139,10 +139,14 @@
   html[data-noite="1"] .cli-comum { background: var(--surf-2); color: var(--text-muted); }
   html[data-noite="1"] .mini-del { background: #3A1A18; color: #F0857A; }
   html[data-noite="1"] .empty-state { background: var(--card); }
-  /* Etiquetas de atacado: âmbar sobre fundo escuro em vez de creme */
-  html[data-noite="1"] .atacado-tag { background: #3A2C14; color: #E8BE72; }
-  html[data-noite="1"] .pb-min,
-  html[data-noite="1"] .pb-eco { background: #4A3A18; color: #F0C572; }
+  /* Caixa de atacado no escuro: o creme original virava um borrão. Fundo âmbar
+     bem escuro com texto claro, para o preço promocional saltar aos olhos. */
+  html[data-noite="1"] .pbox.atacado { background: linear-gradient(160deg, #4A3915, #2E2410); border-color: #B08A34; }
+  html[data-noite="1"] .pbox.atacado .pb-lbl { color: #F2C563; }
+  html[data-noite="1"] .pbox.atacado .pb-val { color: #FFD98A; }
+  html[data-noite="1"] .atacado-tag { background: #4A3915; color: #FFD98A; }
+  html[data-noite="1"] .pb-min { background: #6B5320; color: #FFE3A3; }
+  html[data-noite="1"] .pb-eco { background: #6B5320; color: #FFE3A3; }
 
   /* Botão de troca de tema no topo */
   .btn-noite {
@@ -2852,6 +2856,17 @@ function brilho(hex) {
   const n = parseInt(String(hex || '').replace('#',''), 16);
   if (!isFinite(n)) return 128;
   return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+}
+
+// Clareia/escurece um tom somando ou subtraindo o mesmo valor nos três canais.
+// Usado para gerar o degradê da barra e o tom claro dos títulos no modo noite.
+function clarear(hex, pct) {
+  const n = parseInt(String(hex).replace('#',''), 16);
+  if (!isFinite(n)) return '#888888';
+  const r = Math.min(255, (n >> 16) + pct);
+  const g = Math.min(255, ((n >> 8) & 255) + pct);
+  const b = Math.min(255, (n & 255) + pct);
+  return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
 }
 
 function escurecer(hex, pct) {
