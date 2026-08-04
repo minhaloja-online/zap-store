@@ -3879,7 +3879,6 @@ function pdvGerarPDF(dadosVenda) {
     cliente: (document.getElementById('pdv-cliente').value || '').trim()
   };
   const total = v.sub - v.desconto;
-  const totalFalta = v.itens.reduce((soma, i) => soma + (i.encomendado || 0), 0);
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
@@ -3888,8 +3887,7 @@ function pdvGerarPDF(dadosVenda) {
   doc.setFontSize(13).setFont(undefined, 'bold').setTextColor(40);
   doc.text(v.codigo ? 'Venda ' + v.codigo : 'Orçamento (venda não finalizada)', 14, 40);
   doc.setFontSize(9.5).setFont(undefined, 'normal').setTextColor(90);
-  doc.text('Venda presencial na loja', 14, 46);
-  doc.text('Data: ' + new Date().toLocaleString('pt-BR'), 120, 46);
+  doc.text('Data: ' + new Date().toLocaleString('pt-BR'), 14, 46);
   doc.setDrawColor(225).line(14, 51, 196, 51);
 
   let y = 59;
@@ -3900,20 +3898,36 @@ function pdvGerarPDF(dadosVenda) {
   y += 6; doc.text('Forma de pagamento: ' + v.forma, 14, y);
   y += 10;
 
+  // Primeira coluna fica vazia no corpo: a foto é desenhada por cima em
+  // didDrawCell, porque o autoTable não aceita imagem como conteúdo de célula.
+  const imgSize = 14;
   doc.autoTable({
     startY: y,
-    head: [['Produto', 'Qtd', 'Preço un.', 'Subtotal', 'Situação']],
+    head: [['', 'Produto', 'Qtd', 'Preço un.', 'Subtotal', 'Situação']],
     body: v.itens.map(i => [
-      i.nome, i.qtd, fmt(i.unit), fmt(i.unit * i.qtd),
+      '', i.nome, i.qtd, fmt(i.unit), fmt(i.unit * i.qtd),
       i.encomendado ? i.encomendado + ' un. em encomenda' : 'Entregue'
     ]),
     headStyles: { fillColor: [13, 43, 107], fontSize: 9.5 },
-    bodyStyles: { fontSize: 9.5 },
+    bodyStyles: { fontSize: 9.5, minCellHeight: 18, valign: 'middle' },
     columnStyles: {
-      1: { halign: 'center', cellWidth: 14 },
-      2: { halign: 'right', cellWidth: 24 },
+      0: { cellWidth: imgSize + 6 },
+      2: { halign: 'center', cellWidth: 14 },
       3: { halign: 'right', cellWidth: 24 },
-      4: { fontSize: 8.5, cellWidth: 38 }
+      4: { halign: 'right', cellWidth: 24 },
+      5: { fontSize: 8.5, cellWidth: 34 }
+    },
+    didDrawCell: (data) => {
+      if (data.section !== 'body' || data.column.index !== 0) return;
+      const item = v.itens[data.row.index];
+      const prod = produtos.find(pr => pr.id === item.id);
+      const img = prod ? getCapa(prod) : '';
+      if (!img) return;
+      try {
+        const x = data.cell.x + 3;
+        const yImg = data.cell.y + (data.cell.height - imgSize) / 2;
+        doc.addImage(img, 'JPEG', x, yImg, imgSize, imgSize);
+      } catch (e) {}
     }
   });
 
@@ -3928,15 +3942,6 @@ function pdvGerarPDF(dadosVenda) {
   linha('Subtotal', fmt(v.sub));
   if (v.desconto > 0) linha('Desconto', '- ' + fmt(v.desconto));
   linha('TOTAL', fmt(total), true);
-
-  if (totalFalta) {
-    fy += 4;
-    doc.setFillColor(253, 243, 221).rect(14, fy - 5, 182, 20, 'F');
-    doc.setFontSize(9.5).setFont(undefined, 'bold').setTextColor(122, 84, 16);
-    doc.text('ENCOMENDA - ' + totalFalta + ' unidade(s) a entregar', 18, fy + 1);
-    doc.setFont(undefined, 'normal').setFontSize(8.5);
-    doc.text('Guarde este comprovante. Avisaremos assim que a mercadoria chegar.', 18, fy + 8);
-  }
 
   doc.setFontSize(8.5).setTextColor(130).setFont(undefined, 'normal');
   doc.text('Documento gerado em ' + new Date().toLocaleString('pt-BR') + ' - ' + (config.nome || 'Zap Store'),
