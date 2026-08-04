@@ -734,6 +734,16 @@
   .field label small { font-weight:500; text-transform:none; letter-spacing:0; color:var(--text-muted); }
   .field input[type=range] { width:100%; accent-color:var(--primary); cursor:pointer; }
 
+  /* Interruptor de visibilidade no catálogo */
+  .switch { width:42px; height:23px; border-radius:99px; border:none; cursor:pointer; padding:0;
+            background:var(--surf-3); position:relative; transition:background .2s; flex-shrink:0; }
+  .switch.on { background:var(--accent); }
+  .switch span { position:absolute; top:3px; left:3px; width:17px; height:17px; border-radius:50%;
+                 background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.3); transition:left .2s; }
+  .switch.on span { left:22px; }
+  .switch:hover { filter:brightness(1.08); }
+  tr.inativo { opacity:.55; }
+
   .admin-tabs { display:flex; gap:8px; margin-bottom:1.2rem; flex-wrap:wrap; }
   .admin-tab { padding:.6rem 1.1rem; border-radius:8px; border:1px solid var(--border); background:#fff; cursor:pointer; font-weight:700; font-size:.88rem; color:var(--text-muted); transition:all .2s; }
   .admin-tab:hover { border-color:var(--primary-light); color:var(--marca-txt); }
@@ -1166,6 +1176,23 @@
                 <label>🔍 Buscar por nome ou categoria</label>
                 <input type="text" id="adm-prod-busca" placeholder="Digite para filtrar..." oninput="renderAdminTable()">
               </div>
+              <div class="field" style="margin-bottom:0; min-width:160px;">
+                <label>Categoria</label>
+                <select id="adm-prod-categoria" onchange="renderAdminTable()"><option value="">Todas</option></select>
+              </div>
+              <div class="field" style="margin-bottom:0; min-width:180px;">
+                <label>Ordenar por</label>
+                <select id="adm-prod-ordem" onchange="renderAdminTable()">
+                  <option value="nome">Nome (A-Z)</option>
+                  <option value="nome-desc">Nome (Z-A)</option>
+                  <option value="estoque">Menor estoque</option>
+                  <option value="estoque-desc">Maior estoque</option>
+                  <option value="preco">Menor preço</option>
+                  <option value="preco-desc">Maior preço</option>
+                  <option value="categoria">Categoria</option>
+                  <option value="margem">Menor margem</option>
+                </select>
+              </div>
               <div class="field" style="margin-bottom:0; min-width:170px;">
                 <label>Estoque</label>
                 <select id="adm-prod-status" onchange="renderAdminTable()">
@@ -1173,13 +1200,17 @@
                   <option value="ok">✅ Com estoque</option>
                   <option value="baixo">⚠️ Acabando (3 ou menos)</option>
                   <option value="zero">❌ Esgotados</option>
+                  <option value="off">🚫 Fora do site</option>
                 </select>
+              </div>
+              <div class="field" style="margin-bottom:0; display:flex; align-items:flex-end;">
+                <button class="btn-clear" onclick="limparFiltrosProdutos()">✕ Limpar</button>
               </div>
             </div>
             <div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">
               <table class="admin-table">
                 <thead>
-                  <tr><th></th><th>Produto</th><th>Categoria</th><th>Custo</th><th>Varejo</th><th>Atacado (3+)</th><th>Estoque</th><th>Ações</th></tr>
+                  <tr><th></th><th>Produto</th><th>Categoria</th><th>Custo</th><th>Varejo</th><th>Atacado (3+)</th><th>Estoque</th><th>No site</th><th>Ações</th></tr>
                 </thead>
                 <tbody id="admin-tbody"></tbody>
               </table>
@@ -1955,7 +1986,7 @@ function montarCategorias() {
   const cats = [...new Set(produtos.map(p => p.categoria).filter(Boolean))].sort();
   const opcoes = '<option value="">Todas</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join('');
   // preenche o filtro do celular e o da barra lateral
-  ['f-categoria', 'sf-categoria', 'pdv-categoria'].forEach(id => {
+  ['f-categoria', 'sf-categoria', 'pdv-categoria', 'adm-prod-categoria'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     const atual = sel.value;
@@ -1999,6 +2030,9 @@ function renderCatalog() {
   const ordem = document.getElementById('f-ordem').value;
 
   let lista = produtos.filter(p =>
+    // Produto desativado some do catálogo do cliente, mas continua existindo
+    // no painel e no PDV — dá para vender no balcão sem expor no site.
+    p.ativo !== false &&
     (!busca || p.nome.toLowerCase().includes(busca) || (p.descricao||'').toLowerCase().includes(busca)) &&
     (!cat || p.categoria === cat) &&
     p.preco >= min && p.preco <= max
@@ -2106,9 +2140,11 @@ function abrirProduto(id) {
   catEl.textContent = modalProd.categoria || '';
   catEl.style.display = modalProd.categoria ? 'inline-block' : 'none';
   document.getElementById('m-desc').textContent = modalProd.descricao || 'Sem descrição.';
-  const est = modalProd.estoque;
+  // A quantidade em estoque é informação interna: o cliente não precisa saber
+  // que só restam 2 unidades, e isso ainda cria pressão desnecessária.
+  // O número aparece só no PDV e no painel do vendedor.
   const elEst = document.getElementById('m-estoque');
-  elEst.textContent = (est && est > 0) ? `✅ ${est} unidade${est>1?'s':''} em estoque` : '';
+  elEst.textContent = '';
   const btn = document.getElementById('m-add');
   btn.disabled = false;
   btn.textContent = '+ Adicionar ao carrinho';
@@ -3644,6 +3680,30 @@ function adminView(v) {
   if (v === 'clientes') renderClientes();
 }
 
+// Liga/desliga a exibição do produto no catálogo do cliente.
+// Não mexe no estoque nem apaga nada: só tira da vitrine.
+async function alternarAtivo(id) {
+  const p = produtos.find(x => x.id === id);
+  if (!p) return;
+  const novo = (p.ativo === false); // estava desativado -> volta a aparecer
+  try {
+    await db.collection('produtos').doc(id).update({ ativo: novo });
+    toast(novo ? `✅ "${p.nome}" voltou ao catálogo` : `🚫 "${p.nome}" saiu do catálogo`);
+  } catch (e) {
+    toast('❌ Erro ao alterar: ' + e.message);
+  }
+}
+
+function limparFiltrosProdutos() {
+  ['adm-prod-busca', 'adm-prod-categoria', 'adm-prod-status'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const ord = document.getElementById('adm-prod-ordem');
+  if (ord) ord.value = 'nome';
+  renderAdminTable();
+}
+
 function produtoView(v) {
   ['estoque','cadastrar'].forEach(k => {
     const el = document.getElementById('pview-' + k);
@@ -3816,11 +3876,15 @@ function pdvAtualizar() {
       const noAtacado = unit < i.preco;
       const falta = pdvFaltando(i);
       const notas = [];
-      if (noAtacado) notas.push('preço de atacado aplicado');
+      // Mostra por quanto cada unidade está saindo — no atacado, também o preço
+      // cheio riscado, para o atendente conseguir explicar o desconto.
+      notas.push(noAtacado
+        ? `<strong>${fmt(unit)}</strong> un. <s style="opacity:.6">${fmt(i.preco)}</s> · atacado`
+        : `<strong>${fmt(unit)}</strong> un.`);
       if (falta) notas.push(`⚠️ ${falta} un. em encomenda`);
       return `
       <div class="pdv-item">
-        <span class="pdv-item-nome">${i.nome}${notas.length ? `<small>${notas.join(' · ')}</small>` : ''}</span>
+        <span class="pdv-item-nome">${i.nome}<small>${notas.join(' · ')}</small></span>
         <span class="qty-box" style="display:inline-flex">
           <button onclick="pdvQtd(${idx},-1)">−</button><span>${i.qtd}</span><button onclick="pdvQtd(${idx},1)">+</button>
         </span>
@@ -4682,6 +4746,10 @@ function marcarEnviado(id) {
 }
 
 /* ==================== EXPORTAR PDF — PEDIDO DETALHADO ==================== */
+// Dados fiscais/de contato que saem em todo documento gerado
+const PDF_CONTATO = '96 99157-2264';
+const PDF_CNPJ = '65.939.774/0001-45';
+
 function cabecalhoPDF(doc, subtitulo) {
   doc.setFillColor(13, 43, 107);
   doc.rect(0, 0, 210, 30, 'F');
@@ -4689,9 +4757,13 @@ function cabecalhoPDF(doc, subtitulo) {
     try { doc.addImage(LOGO_B64, 'PNG', 14, 6, 18, 18); } catch (e) {}
   }
   doc.setTextColor(255).setFontSize(16).setFont(undefined, 'bold');
-  doc.text(config.nome || 'ZAP STORE', 38, 15);
-  doc.setFontSize(9.5).setFont(undefined, 'normal');
-  doc.text(subtitulo, 38, 22);
+  doc.text(config.nome || 'ZAP STORE', 38, 13);
+  doc.setFontSize(9).setFont(undefined, 'normal');
+  doc.text(subtitulo, 38, 19);
+  // Contato e CNPJ ficam à direita, para não empurrar o subtítulo
+  doc.setFontSize(8.5);
+  doc.text('Contato: ' + PDF_CONTATO, 196, 13, { align: 'right' });
+  doc.text('CNPJ: ' + PDF_CNPJ, 196, 19, { align: 'right' });
   doc.setTextColor(40);
 }
 
@@ -5412,21 +5484,44 @@ function renderAdminTable() {
   if (!tbody) return;
   const termo = (document.getElementById('adm-prod-busca')?.value || '').toLowerCase().trim();
   const filtroEstoque = document.getElementById('adm-prod-status')?.value || '';
+  const categoria = document.getElementById('adm-prod-categoria')?.value || '';
+  const ordem = document.getElementById('adm-prod-ordem')?.value || 'nome';
 
   let lista = [...produtos];
   if (termo) {
     lista = lista.filter(p => (p.nome || '').toLowerCase().includes(termo) ||
                               (p.categoria || '').toLowerCase().includes(termo));
   }
+  if (categoria) lista = lista.filter(p => (p.categoria || '') === categoria);
   if (filtroEstoque) {
     lista = lista.filter(p => {
       const q = Number(p.estoque) || 0;
+      if (filtroEstoque === 'off') return p.ativo === false;
       if (filtroEstoque === 'zero') return q <= 0;
       if (filtroEstoque === 'baixo') return q > 0 && q <= 3;
       return q > 0;
     });
   }
-  lista.sort((a, b) => a.nome.localeCompare(b.nome));
+
+  const est = p => Number(p.estoque) || 0;
+  const preco = p => Number(p.preco) || 0;
+  // Margem só existe onde o custo foi cadastrado; sem custo vai para o fim da
+  // lista, senão produto sem informação apareceria como "margem zero".
+  const margem = p => {
+    const c = Number(p.custo) || 0;
+    return (c > 0 && preco(p) > 0) ? ((preco(p) - c) / preco(p)) * 100 : Infinity;
+  };
+  const porNome = (a, b) => (a.nome || '').localeCompare(b.nome || '');
+  lista.sort({
+    'nome':         porNome,
+    'nome-desc':    (a, b) => porNome(b, a),
+    'estoque':      (a, b) => est(a) - est(b) || porNome(a, b),
+    'estoque-desc': (a, b) => est(b) - est(a) || porNome(a, b),
+    'preco':        (a, b) => preco(a) - preco(b) || porNome(a, b),
+    'preco-desc':   (a, b) => preco(b) - preco(a) || porNome(a, b),
+    'categoria':    (a, b) => (a.categoria || 'zzz').localeCompare(b.categoria || 'zzz') || porNome(a, b),
+    'margem':       (a, b) => margem(a) - margem(b) || porNome(a, b)
+  }[ordem] || porNome);
 
   document.getElementById('prod-count').textContent = `(${lista.length} de ${produtos.length})`;
   document.getElementById('admin-empty').style.display = lista.length ? 'none' : 'block';
@@ -5436,7 +5531,7 @@ function renderAdminTable() {
     // estoque baixo salta aos olhos na tabela, sem precisar abrir o Dashboard
     const corEst = q <= 0 ? 'var(--danger)' : (q <= 3 ? 'var(--alerta-txt)' : '');
     return `
-    <tr>
+    <tr class="${p.ativo === false ? 'inativo' : ''}">
       <td>${getCapa(p) ? `<img src="${getCapa(p)}">` : '📦'}</td>
       <td><strong>${p.nome}</strong></td>
       <td>${p.categoria || '-'}</td>
@@ -5444,6 +5539,9 @@ function renderAdminTable() {
       <td>${fmt(p.preco)}</td>
       <td>${(p.precoAtacado !== undefined && p.precoAtacado !== null) ? fmt(p.precoAtacado) : '<span style="color:var(--text-muted)">—</span>'}</td>
       <td style="font-weight:700; color:${corEst}">${q}</td>
+      <td><button class="switch ${p.ativo === false ? '' : 'on'}" onclick="alternarAtivo('${p.id}')"
+            title="${p.ativo === false ? 'Fora do catálogo — clique para mostrar' : 'Visível no catálogo — clique para esconder'}"
+            aria-label="Mostrar ou esconder no catálogo"><span></span></button></td>
       <td style="white-space:nowrap">
         <button class="mini-btn mini-edit" onclick="editarProduto('${p.id}')">Editar</button>
         <button class="mini-btn mini-del" onclick="excluirProduto('${p.id}')">Excluir</button>
