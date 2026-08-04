@@ -1892,7 +1892,7 @@ function blocoPrecos(p, grande) {
     <div class="${cls}">
       ${varejo}
       <div class="pbox atacado">
-        <div class="pb-lbl">Atacado <span class="pb-min">${QTD_ATACADO}+ un.</span></div>
+        <div class="pb-lbl">Atacado <span class="pb-min">${QTD_ATACADO}+ un. no carrinho</span></div>
         <div class="pb-val">${fmt(p.precoAtacado)}</div>
         <div class="pb-eco">ECONOMIZE ${fmt(economia)} (${pct}%)</div>
       </div>
@@ -2042,8 +2042,21 @@ function addCarrinhoQtd(id, qtd) {
 }
 
 // Preço unitário aplicado a um item do carrinho, considerando a quantidade dele
+// Total de unidades no carrinho, somando produtos diferentes.
+// É este número que libera o atacado — não a quantidade de cada item.
+function unidadesCarrinho() {
+  return carrinho.reduce((soma, i) => soma + (Number(i.qtd) || 0), 0);
+}
+
+// Atacado liberado? Basta o carrinho ter 3+ unidades no total.
+function atacadoLiberado() {
+  return unidadesCarrinho() >= QTD_ATACADO;
+}
+
 function precoItemCarrinho(item) {
-  return (item.precoAtacado != null && item.qtd >= QTD_ATACADO) ? item.precoAtacado : item.precoVarejo;
+  // Com o carrinho no atacado, TODO item que tem preço de atacado usa esse
+  // preço — inclusive os que estão com uma unidade só.
+  return (item.precoAtacado != null && atacadoLiberado()) ? item.precoAtacado : item.precoVarejo;
 }
 
 /* ==================== MODAL DE PRODUTO ==================== */
@@ -2077,15 +2090,20 @@ function atualizarPrecoModal() {
   document.getElementById('m-qtd').textContent = modalQtd;
   document.getElementById('m-precos').innerHTML = blocoPrecos(modalProd, true);
 
-  const unit = precoUnit(modalProd, modalQtd);
+  // Conta o que já está no carrinho + o que a pessoa vai adicionar agora:
+  // é assim que ela consegue prever se vai fechar no atacado.
+  const jaNoCarrinho = unidadesCarrinho();
+  const totalPrevisto = jaNoCarrinho + modalQtd;
+  const vaiNoAtacado = totalPrevisto >= QTD_ATACADO;
+  const unit = (temAtacado(modalProd) && vaiNoAtacado) ? Number(modalProd.precoAtacado) : Number(modalProd.preco);
   const info = document.getElementById('m-atacado-info');
   if (temAtacado(modalProd)) {
-    if (modalQtd >= QTD_ATACADO) {
+    if (vaiNoAtacado) {
       info.innerHTML = `✅ Preço de atacado aplicado — total ${fmt(unit * modalQtd)}`;
       info.style.color = 'var(--accent-dark)';
     } else {
-      const falta = QTD_ATACADO - modalQtd;
-      info.innerHTML = `📦 Leve mais ${falta} unidade${falta > 1 ? 's' : ''} e pague <strong>${fmt(modalProd.precoAtacado)}</strong> cada`;
+      const falta = QTD_ATACADO - totalPrevisto;
+      info.innerHTML = `📦 Junte mais ${falta} unidade${falta > 1 ? 's' : ''} no carrinho (de qualquer produto) e pague <strong>${fmt(modalProd.precoAtacado)}</strong> cada`;
       info.style.color = '#a37400';
     }
   } else {
@@ -2145,15 +2163,16 @@ function renderCarrinho() {
 
   document.getElementById('cart-items').innerHTML = carrinho.map((i, idx) => {
     const unit = precoItemCarrinho(i);
-    const noAtacado = i.precoAtacado != null && i.qtd >= QTD_ATACADO;
-    const faltaAtacado = i.precoAtacado != null && !noAtacado ? QTD_ATACADO - i.qtd : 0;
+    const noAtacado = i.precoAtacado != null && atacadoLiberado();
+    // O que falta agora é para o CARRINHO inteiro, não para este item
+    const faltaAtacado = i.precoAtacado != null && !noAtacado ? QTD_ATACADO - unidadesCarrinho() : 0;
     return `
     <div class="cart-item">
       <div class="cart-item-img">${i.imagem ? `<img src="${i.imagem}">` : '📦'}</div>
       <div class="cart-item-info">
         <h4>${i.nome}</h4>
         <div class="unit">${fmt(unit)} / un. ${noAtacado ? '<span style="color:var(--accent-dark); font-weight:700;">· atacado ✅</span>' : ''}</div>
-        ${faltaAtacado > 0 ? `<div style="font-size:.74rem; color:var(--text-muted); margin-top:2px;">📦 +${faltaAtacado} un. para pagar ${fmt(i.precoAtacado)} cada</div>` : ''}
+        ${faltaAtacado > 0 ? `<div style="font-size:.74rem; color:var(--text-muted); margin-top:2px;">📦 +${faltaAtacado} un. no carrinho para pagar ${fmt(i.precoAtacado)} cada</div>` : ''}
         <div class="qty-box" style="margin-top:6px; display:inline-flex;">
           <button onclick="cartQtd(${idx}, -1)">−</button>
           <span>${i.qtd}</span>
@@ -3696,10 +3715,15 @@ function pdvPagamento(forma) {
   pdvAtualizar();
 }
 
-// No balcão o preço de atacado vale igual ao site: 3+ unidades do mesmo item
+// No balcão vale a mesma regra do site: o atacado é liberado pelo TOTAL de
+// unidades do cupom, somando produtos diferentes.
+function pdvUnidades() {
+  return pdvItens.reduce((soma, i) => soma + (Number(i.qtd) || 0), 0);
+}
+
 function pdvPrecoItem(it) {
   const p = produtos.find(x => x.id === it.id);
-  if (p && temAtacado(p) && it.qtd >= QTD_ATACADO) return Number(p.precoAtacado);
+  if (p && temAtacado(p) && pdvUnidades() >= QTD_ATACADO) return Number(p.precoAtacado);
   return it.preco;
 }
 
@@ -3866,7 +3890,7 @@ async function pdvFinalizar() {
  * (vale como orçamento) ou depois da venda — no caso de encomenda, é o papel
  * que o cliente guarda para voltar buscar a mercadoria.
  */
-function pdvGerarPDF(dadosVenda) {
+async function pdvGerarPDF(dadosVenda) {
   if (!dadosVenda && !pdvItens.length) return toast('⚠️ Nenhum item na venda.');
   toast('⏳ Gerando PDF...');
 
@@ -3901,6 +3925,7 @@ function pdvGerarPDF(dadosVenda) {
   // Primeira coluna fica vazia no corpo: a foto é desenhada por cima em
   // didDrawCell, porque o autoTable não aceita imagem como conteúdo de célula.
   const imgSize = 14;
+  const fotos = await fotosDosItens(v.itens);
   doc.autoTable({
     startY: y,
     head: [['', 'Produto', 'Qtd', 'Preço un.', 'Subtotal', 'Situação']],
@@ -3919,9 +3944,7 @@ function pdvGerarPDF(dadosVenda) {
     },
     didDrawCell: (data) => {
       if (data.section !== 'body' || data.column.index !== 0) return;
-      const item = v.itens[data.row.index];
-      const prod = produtos.find(pr => pr.id === item.id);
-      const img = prod ? getCapa(prod) : '';
+      const img = fotos[data.row.index];
       if (!img) return;
       try {
         const x = data.cell.x + 3;
@@ -4595,6 +4618,56 @@ function cabecalhoPDF(doc, subtitulo) {
   doc.setTextColor(40);
 }
 
+/* ---------- Imagens para PDF ---------- */
+/*
+ * O addImage do jsPDF não baixa imagem de URL: precisa dos bytes embutidos.
+ * Como a maioria dos produtos foi importada com link externo, as fotos
+ * simplesmente não saíam no PDF. Aqui cada imagem é carregada, desenhada num
+ * canvas e convertida em JPEG antes de entrar no documento.
+ */
+const cachePdfImg = new Map();
+
+function imagemParaPDF(src) {
+  if (!src) return Promise.resolve(null);
+  if (cachePdfImg.has(src)) return Promise.resolve(cachePdfImg.get(src));
+  // Já embutida: usa direto, sem passar pelo canvas
+  if (src.startsWith('data:image')) { cachePdfImg.set(src, src); return Promise.resolve(src); }
+
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous'; // sem isso o canvas fica "sujo" e não exporta
+    const desistir = () => { cachePdfImg.set(src, null); resolve(null); };
+    img.onload = () => {
+      try {
+        const lado = 200; // miniatura: o PDF não precisa da imagem inteira
+        const cv = document.createElement('canvas');
+        cv.width = lado; cv.height = lado;
+        const ctx = cv.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, lado, lado);
+        // encaixa mantendo a proporção, centralizado
+        const esc = Math.min(lado / img.width, lado / img.height);
+        const w = img.width * esc, h = img.height * esc;
+        ctx.drawImage(img, (lado - w) / 2, (lado - h) / 2, w, h);
+        const dados = cv.toDataURL('image/jpeg', 0.75);
+        cachePdfImg.set(src, dados);
+        resolve(dados);
+      } catch (e) { desistir(); }
+    };
+    img.onerror = desistir;
+    // Se o servidor da imagem travar, não deixa o PDF esperando para sempre
+    setTimeout(desistir, 8000);
+  });
+}
+
+// Baixa de uma vez as fotos de uma lista de itens do pedido
+async function fotosDosItens(itens) {
+  return Promise.all((itens || []).map(i => {
+    const prod = produtos.find(pr => pr.id === i.id);
+    return imagemParaPDF(prod ? getCapa(prod) : '');
+  }));
+}
+
 async function exportarPedidoPDF(id) {
   const p = pedidos.find(x => x.id === id);
   if (!p) return;
@@ -4639,6 +4712,7 @@ async function exportarPedidoPDF(id) {
   const itens = p.itens || [];
   const imgSize = 14; // minimalista
   const linhaAltura = 18;
+  const fotos = await fotosDosItens(itens);
 
   doc.autoTable({
     startY: y,
@@ -4654,9 +4728,7 @@ async function exportarPedidoPDF(id) {
     footStyles: { fillColor: [240, 244, 248], textColor: [13, 43, 107], fontStyle: 'bold', fontSize: 10.5, halign: 'right' },
     didDrawCell: (data) => {
       if (data.section === 'body' && data.column.index === 0) {
-        const item = itens[data.row.index];
-        const prod = produtos.find(pr => pr.id === item.id);
-        const img = prod ? getCapa(prod) : '';
+        const img = fotos[data.row.index];
         if (img) {
           try {
             const x = data.cell.x + 3;
@@ -4677,7 +4749,7 @@ async function exportarPedidoPDF(id) {
 }
 
 /* ==================== EXPORTAR PDF — RELATÓRIO DETALHADO POR PRODUTO ==================== */
-function exportarRelatorioPDF() {
+async function exportarRelatorioPDF() {
   const lista = pedidosFiltrados();
   if (!lista.length) return toast('⚠️ Nenhum pedido para exportar com esses filtros.');
   toast('⏳ Gerando relatório em PDF...');
@@ -4714,6 +4786,12 @@ function exportarRelatorioPDF() {
 
   const imgSize = 11; // bem pequena, minimalista
   const totalGeral = lista.reduce((s,p) => s + (p.total || 0), 0);
+  // Uma linha por item vendido: reaproveita o cache, então produto repetido
+  // em vários pedidos é baixado só uma vez.
+  const fotos = await Promise.all(linhas.map(l => {
+    const prod = produtos.find(pr => pr.id === l.itemId);
+    return imagemParaPDF(prod ? getCapa(prod) : '');
+  }));
 
   doc.autoTable({
     startY: 57,
@@ -4730,9 +4808,7 @@ function exportarRelatorioPDF() {
     footStyles: { fillColor: [240, 244, 248], textColor: [13, 43, 107], fontStyle: 'bold', fontSize: 8.5, halign: 'right' },
     didDrawCell: (data) => {
       if (data.section === 'body' && data.column.index === 0) {
-        const linha = linhas[data.row.index];
-        const prod = produtos.find(pr => pr.id === linha.itemId);
-        const img = prod ? getCapa(prod) : '';
+        const img = fotos[data.row.index];
         if (img) {
           try {
             const x = data.cell.x + 2;
