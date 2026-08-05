@@ -1013,6 +1013,12 @@
 
       <div class="cart-summary">
         <h3>📋 Resumo do Pedido</h3>
+        <p id="cart-aviso-login" style="display:none; font-size:.8rem; background:var(--alerta-bg); color:var(--alerta-txt);
+           border-radius:9px; padding:.6rem .8rem; margin-bottom:1rem;">
+          🔒 Para finalizar você precisa <a href="#" onclick="abrirModalConta(); return false;"
+          style="color:inherit; font-weight:800; text-decoration:underline;">entrar na sua conta</a>.
+          Pode montar o carrinho à vontade — ele fica guardado.
+        </p>
         <div class="field">
           <label>Seu nome *</label>
           <input type="text" id="c-nome" placeholder="Nome completo">
@@ -2284,6 +2290,10 @@ function renderCarrinho() {
   if (!carrinho.length) { layout.style.display = 'none'; vazio.style.display = 'block'; return; }
   layout.style.display = ''; vazio.style.display = 'none';
 
+  // Avisa desde já que vai precisar entrar, em vez de só barrar no fim
+  const avisoLogin = document.getElementById('cart-aviso-login');
+  if (avisoLogin) avisoLogin.style.display = usuario ? 'none' : 'block';
+
   document.getElementById('cart-items').innerHTML = carrinho.map((i, idx) => {
     const unit = precoItemCarrinho(i);
     const noAtacado = i.precoAtacado != null && atacadoLiberado();
@@ -2494,7 +2504,23 @@ function htmlCarregandoPagamento() {
   </body></html>`;
 }
 
+/*
+ * Fechar pedido exige conta. O carrinho continua livre para qualquer visitante
+ * montar — só na hora de finalizar é que pedimos o login, porque sem conta o
+ * cliente não conseguiria acompanhar o pedido em "Meus Pedidos" nem receber
+ * baixa de pagamento vinculada a ele.
+ *
+ * O carrinho fica guardado: depois de entrar, a pessoa continua de onde parou.
+ */
+function exigirLogin(motivo) {
+  if (usuario) return true;
+  toast('🔒 ' + (motivo || 'Entre na sua conta para finalizar o pedido.'));
+  abrirModalConta();
+  return false;
+}
+
 async function pagarOnline(btn) {
+  if (!exigirLogin('Entre na sua conta para pagar — assim você acompanha o pedido depois.')) return;
   const api = normalizarApi(config.api);
   if (!api) return toast('⚠️ Pagamento online não está configurado.');
 
@@ -2645,6 +2671,7 @@ function fecharAvisoPagamento() {
 
 async function enviarPedido(btn) {
   if (!carrinho.length) return toast('Carrinho vazio!');
+  if (!exigirLogin('Entre na sua conta para enviar o pedido.')) return;
   const nome = document.getElementById('c-nome').value.trim();
   const cpfCnpj = document.getElementById('c-cpf').value.replace(/\D/g, '');
   const fone = document.getElementById('c-fone').value.trim();
@@ -2768,6 +2795,8 @@ auth.onAuthStateChanged(async user => {
   }
 
   atualizarBarraUsuario();
+  // O aviso de login no carrinho some assim que a pessoa entra
+  if (document.getElementById('cart-layout')?.style.display !== 'none') renderCarrinho();
 
   // Painel do vendedor só aparece para quem é vendedor
   document.getElementById('admin-login').style.display = ehVendedor ? 'none' : 'block';
@@ -2830,6 +2859,9 @@ function atualizarBarraUsuario() {
 
 function toggleUserMenu(ev) {
   ev.stopPropagation();
+  // Sem conta, o menu teria uma opção só ("Entrar / Criar conta"): abrir a
+  // janela de login direto poupa um clique. Logado, o menu faz sentido.
+  if (!usuario) { fecharUserMenu(); abrirModalConta(); return; }
   document.getElementById('user-menu').classList.toggle('open');
 }
 function fecharUserMenu() { document.getElementById('user-menu').classList.remove('open'); }
