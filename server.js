@@ -299,8 +299,10 @@ async function exigirVendedor(token) {
   } catch (_) {
     throw Object.assign(new Error('Sessão expirada. Entre de novo.'), { codigo: 401 });
   }
-  const ehAdmin = (await db.collection('admins').doc(uid).get()).exists;
-  if (!ehAdmin) throw Object.assign(new Error('Só o vendedor pode fazer isso.'), { codigo: 403 });
+  // Administrador e vendedor externo podem emitir boleto e dar baixa.
+  // Cliente comum, não.
+  const doc = await db.collection('admins').doc(uid).get();
+  if (!doc.exists) throw Object.assign(new Error('Sem permissão para esta ação.'), { codigo: 403 });
   return uid;
 }
 
@@ -326,7 +328,30 @@ function vencimentosMensais(inicioISO, n) {
 }
 
 // Emite na Asaas o boleto de uma parcela e devolve os dados para gravar
-async function emitirBoletoParcela(pedido, pedidoId, parcela, totalParcelas) {
+// Monta os blocos de multa, juros e desconto no formato que a Asaas espera.
+// Campo zerado é omitido: mandar zero faz a Asaas recusar a cobrança.
+function regrasCobranca(cfg) {
+  const c = cfg || {};
+  const regras = {};
+  const num = v => Number(v) || 0;
+
+  if (num(c.multa) > 0) {
+    regras.fine = { value: num(c.multa), type: c.multaTipo === 'FIXED' ? 'FIXED' : 'PERCENTAGE' };
+  }
+  // Juros na Asaas são sempre percentuais ao mês
+  if (num(c.juros) > 0) regras.interest = { value: num(c.juros) };
+
+  if (num(c.desconto) > 0) {
+    regras.discount = {
+      value: num(c.desconto),
+      dueDateLimitDays: Math.max(0, Math.trunc(num(c.descontoDias))),
+      type: c.descontoTipo === 'FIXED' ? 'FIXED' : 'PERCENTAGE'
+    };
+  }
+  return regras;
+}
+
+async function emitirBoletoParcela(pedido, pedidoId, parcela, totalParcelas, cfgBoleto) {
   const customerId = pedido.asaasCustomerId || await encontrarOuCriarCliente(pedido.cliente);
   const cobranca = await asaas('/payments', {
     method: 'POST',
@@ -336,7 +361,8 @@ async function emitirBoletoParcela(pedido, pedidoId, parcela, totalParcelas) {
       value: parcela.valor,
       dueDate: parcela.vencimento,
       description: `Pedido ${pedido.codigo} — parcela ${parcela.n}/${totalParcelas}`,
-      externalReference: pedidoId
+      externalReference: pedidoId,
+      ...regrasCobranca(cfgBoleto || pedido.parcelamento?.configBoleto)
     })
   });
   return {
@@ -353,7 +379,7 @@ async function emitirBoletoParcela(pedido, pedidoId, parcela, totalParcelas) {
 /* ---------- Criar o plano de parcelamento ---------- */
 app.post('/api/criar-parcelamento', async (req, res) => {
   try {
-    const { pedidoId, parcelas, token, primeiroVencimento } = req.body;
+    const { pedidoId, parcelas, token, primeiroVencimento, configBoleto } = req.body;
     await exigirVendedor(token);
 
     const n = Number.parseInt(parcelas, 10);
@@ -386,8 +412,24 @@ app.post('/api/criar-parcelamento', async (req, res) => {
       n: i + 1, valor, vencimento: datas[i], status: 'a_gerar'
     }));
 
-    // Só a primeira já sai emitida; as outras o vendedor gera mês a mês
-    lista[0] = await emitirBoletoParcela(pedido, pedidoId, lista[0], n);
+    // Todos os boletos saem de uma vez: assim o cliente recebe o carnê inteiro
+    // e pode antecipar parcelas se quiser. Se algum falhar, ele fica como
+    // "a_gerar" e o vendedor emite depois pelo botão, sem perder os outros.
+    let clienteAsaas = pedido.asaasCustomerId;
+    for (let i = 0; i < lista.length; i++) {
+      try {
+        const emitida = await emitirBoletoParcela(
+          { ...pedido, asaasCustomerId: clienteAsaas }, pedidoId, lista[i], n, configBoleto);
+        clienteAsaas = emitida.customerId;
+        lista[i] = emitida;
+      } catch (e) {
+        console.error(`Parcela ${i + 1} não pôde ser emitida:`, e.message);
+        lista[i] = { ...lista[i], erroEmissao: e.message };
+      }
+    }
+    if (!lista.some(x => x.asaasId)) {
+      throw new Error('Nenhum boleto pôde ser emitido. Confira o CPF/CNPJ do cliente.');
+    }
 
     // Aprovar via boleto é aprovar o pedido: a mercadoria vai ser separada e
     // entregue agora, e o cliente paga ao longo dos meses. Por isso o estoque
@@ -412,15 +454,17 @@ app.post('/api/criar-parcelamento', async (req, res) => {
           total: n,
           valorTotal: Math.round(total * 100) / 100,
           criadoEm: new Date().toISOString(),
-          parcelas: lista
+            parcelas: lista,
+          configBoleto: configBoleto || null
         },
-        asaasCustomerId: lista[0].customerId,
+        asaasCustomerId: clienteAsaas || lista[0].customerId,
         atualizadoEm: admin.firestore.FieldValue.serverTimestamp()
       });
     });
 
-    console.log(`Parcelamento criado — pedido ${pedido.codigo} — ${n}x de R$ ${valores[0]}`);
-    res.json({ ok: true, linkBoleto: lista[0].linkBoleto, parcelas: lista });
+    const emitidos = lista.filter(x => x.asaasId).length;
+    console.log(`Parcelamento criado — pedido ${pedido.codigo} — ${n}x de R$ ${valores[0]} — ${emitidos} boleto(s) emitido(s)`);
+    res.json({ ok: true, linkBoleto: lista[0].linkBoleto, emitidos, total: n, parcelas: lista });
   } catch (erro) {
     console.error('Falha ao criar parcelamento:', erro);
     res.status(erro.codigo || 500).json({ erro: erro.message || 'Não foi possível parcelar.' });
@@ -447,7 +491,8 @@ app.post('/api/gerar-parcela', async (req, res) => {
       return res.status(409).json({ erro: 'O boleto desta parcela já foi gerado.' });
     }
 
-    const atualizada = await emitirBoletoParcela(pedido, pedidoId, plano.parcelas[idx], plano.total);
+    const atualizada = await emitirBoletoParcela(
+      pedido, pedidoId, plano.parcelas[idx], plano.total, plano.configBoleto);
     const novas = [...plano.parcelas];
     novas[idx] = atualizada;
 

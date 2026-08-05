@@ -678,6 +678,19 @@
   body.modo-pdv .side-filtros,
   body.modo-pdv .side-title.filtros-titulo { display:none !important; }
 
+  .cli-papel { padding:.35rem .5rem; border-radius:8px; border:1px solid var(--border);
+               background:var(--card); color:var(--text); font-family:inherit; font-size:.8rem;
+               font-weight:700; cursor:pointer; }
+
+  /* Configuração do boleto (multa, juros, desconto) */
+  .cfg-boleto { border:1px solid var(--border); border-radius:10px; margin-bottom:.8rem; background:var(--surf-2); }
+  .cfg-boleto summary { cursor:pointer; padding:.6rem .8rem; font-size:.83rem; font-weight:700; color:var(--marca-txt); }
+  .cfg-boleto[open] summary { border-bottom:1px solid var(--border); }
+  .cfg-boleto-corpo { padding:.8rem; }
+  .cfg-bol-linha { display:grid; grid-template-columns:1fr 88px; gap:.6rem; margin-bottom:.6rem; }
+  .cfg-bol-resumo { font-size:.76rem; color:var(--text-muted); background:var(--card); border-radius:8px;
+                    padding:.55rem .7rem; margin-top:.8rem; line-height:1.5; }
+
   /* Autocomplete de clientes na Área do Vendedor */
   .vend-sugestoes { position:absolute; top:100%; left:0; right:0; z-index:50; background:var(--card);
                     border:1px solid var(--border); border-radius:0 0 10px 10px; box-shadow:var(--shadow-hover);
@@ -1750,6 +1763,7 @@
             <input type="date" id="vend-venc" onchange="vendAtualizar()">
           </div>
           <div id="vend-previa" style="margin-bottom:.6rem"></div>
+          <div id="vend-cfg"></div>
         </div>
 
         <div class="field" style="margin-top:.4rem">
@@ -1980,8 +1994,9 @@
         <input type="date" id="mparc-venc" onchange="atualizarPreviaParcelas()">
       </div>
       <div id="mparc-previa" style="margin-bottom:1rem"></div>
+      <div id="mparc-cfg"></div>
 
-      <button class="btn-block btn-pdf" onclick="confirmarParcelamento(this)">Confirmar e gerar 1º boleto</button>
+      <button class="btn-block btn-pdf" onclick="confirmarParcelamento(this)">Confirmar e gerar boletos</button>
       <button class="btn-block btn-ghost" onclick="fecharParcelamento()">Cancelar</button>
     </div>
   </div>
@@ -2891,7 +2906,8 @@ async function enviarPedido(btn) {
 let unsubPedidos = null;
 
 let usuario = null;        // usuário logado (cliente ou vendedor)
-let ehVendedor = false;    // true quando o usuário consta na coleção "admins"
+let ehVendedor = false;    // administrador OU vendedor externo — vê a Área do Vendedor
+let ehAdmin = false;       // só administrador — vê o painel Administrador
 let favoritos = [];        // ids dos produtos favoritados
 let meusPedidos = [];
 let unsubMeusPedidos = null;
@@ -2900,6 +2916,7 @@ let unsubFavoritos = null;
 auth.onAuthStateChanged(async user => {
   usuario = user;
   ehVendedor = false;
+  ehAdmin = false;
 
   // Encerra escutas anteriores
   if (unsubPedidos) { unsubPedidos(); unsubPedidos = null; pedidos = []; }
@@ -2911,10 +2928,15 @@ auth.onAuthStateChanged(async user => {
 
   if (user) {
     // Descobre se este usuário é o vendedor (documento em "admins/{uid}")
+    // Três níveis: administrador (tudo), vendedor (só a Área do Vendedor)
+    // e cliente (nenhuma área interna). Documento antigo sem "papel" continua
+    // valendo como administrador, para ninguém perder acesso na atualização.
     try {
       const doc = await db.collection('admins').doc(user.uid).get();
-      ehVendedor = doc.exists;
-    } catch (e) { ehVendedor = false; }
+      const papel = doc.exists ? (doc.data().papel || 'admin') : 'cliente';
+      ehAdmin = papel === 'admin';
+      ehVendedor = papel === 'admin' || papel === 'vendedor';
+    } catch (e) { ehAdmin = false; ehVendedor = false; }
 
     escutarFavoritos();
     escutarMeusPedidos();
@@ -2926,14 +2948,18 @@ auth.onAuthStateChanged(async user => {
   // O aviso de login no carrinho some assim que a pessoa entra
   if (document.getElementById('cart-layout')?.style.display !== 'none') renderCarrinho();
 
-  // A Área do Vendedor fica escondida de quem é cliente comum
+  // Área do Vendedor: administrador e vendedor. Cliente comum nem vê o botão.
   const btnVend = document.getElementById('side-vendedor');
   if (btnVend) btnVend.style.display = ehVendedor ? '' : 'none';
   if (!ehVendedor && document.getElementById('vendedor')?.classList.contains('active')) switchTab('loja');
 
-  // Painel do vendedor só aparece para quem é vendedor
-  document.getElementById('admin-login').style.display = ehVendedor ? 'none' : 'block';
-  document.getElementById('admin-panel').style.display = ehVendedor ? 'block' : 'none';
+  // Painel Administrador: só administrador. O vendedor externo não vê
+  // faturamento, custo, configurações da loja nem cadastro de produtos.
+  document.querySelectorAll('[data-tab="admin"]').forEach(b => b.style.display = ehAdmin ? '' : 'none');
+  if (!ehAdmin && document.getElementById('admin')?.classList.contains('active')) switchTab('loja');
+
+  document.getElementById('admin-login').style.display = ehAdmin ? 'none' : 'block';
+  document.getElementById('admin-panel').style.display = ehAdmin ? 'block' : 'none';
 
   if (ehVendedor) {
     escutarClientes();
@@ -3564,6 +3590,8 @@ async function salvarPerfil() {
 /* ==================== ADMINISTRAÇÃO DE CLIENTES ==================== */
 let clientes = [];
 let adminsIds = [];
+// uid -> 'admin' | 'vendedor'. Quem não está aqui é cliente comum.
+let papeis = {};
 let unsubClientes = null, unsubAdmins = null;
 
 function escutarClientes() {
@@ -3573,6 +3601,9 @@ function escutarClientes() {
   }, e => console.error('clientes:', e));
   unsubAdmins = db.collection('admins').onSnapshot(snap => {
     adminsIds = snap.docs.map(d => d.id);
+    // Documentos criados antes dos papéis existirem valem como administrador
+    papeis = {};
+    snap.docs.forEach(d => { papeis[d.id] = d.data().papel || 'admin'; });
     renderClientes();
   }, e => console.error('admins:', e));
 }
@@ -3591,18 +3622,21 @@ function renderClientes() {
   document.getElementById('cli-vazio').style.display = lista.length ? 'none' : 'block';
 
   tb.innerHTML = lista.map(c => {
-    const ehAdm = adminsIds.includes(c.id);
+    const papel = papeis[c.id] || 'cliente';
     return `
     <tr>
       <td>${c.foto ? `<img src="${c.foto}" style="width:34px;height:34px;border-radius:50%;object-fit:cover">` : '👤'}</td>
       <td><strong>${c.nome || '—'}</strong></td>
       <td style="font-size:.82rem">${c.email || '—'}</td>
       <td style="font-size:.82rem">${c.telefone || '—'}</td>
-      <td><span class="cli-badge ${ehAdm ? 'cli-admin' : 'cli-comum'}">${ehAdm ? 'Administrador' : 'Cliente'}</span></td>
+      <td>
+        <select class="cli-papel" onchange="definirPapel('${c.id}','${(c.nome||'').replace(/'/g,"")}', this.value, this)">
+          <option value="cliente"${papel === 'cliente' ? ' selected' : ''}>👤 Cliente</option>
+          <option value="vendedor"${papel === 'vendedor' ? ' selected' : ''}>🧑‍💼 Vendedor</option>
+          <option value="admin"${papel === 'admin' ? ' selected' : ''}>🔐 Administrador</option>
+        </select>
+      </td>
       <td style="white-space:nowrap">
-        ${ehAdm
-          ? `<button class="mini-btn mini-del" onclick="rebaixarAdmin('${c.id}','${(c.nome||'').replace(/'/g,"")}')">↓ Remover admin</button>`
-          : `<button class="mini-btn mini-edit" onclick="promoverAdmin('${c.id}','${(c.nome||'').replace(/'/g,"")}')">↑ Tornar admin</button>`}
         <button class="mini-btn" style="background:#fff4e0;color:#a35c00" onclick="resetarSenhaCliente('${c.email || ''}')">🔑 Resetar senha</button>
         <button class="mini-btn mini-del" onclick="removerCliente('${c.id}','${(c.nome||'').replace(/'/g,"")}')">🗑 Remover</button>
       </td>
@@ -3615,6 +3649,42 @@ function msgCli(txt, erro) {
   el.className = 'msg ' + (erro ? 'err' : 'ok');
   el.textContent = txt;
   setTimeout(() => { el.className = 'msg'; }, 5000);
+}
+
+/*
+ * Define o nível de acesso de uma pessoa.
+ *   cliente   — só a loja
+ *   vendedor  — loja + Área do Vendedor (vende para clientes, emite boleto)
+ *   admin     — tudo, inclusive faturamento, custos e configurações
+ * Cliente é a ausência de documento em "admins"; os outros dois ficam lá,
+ * separados pelo campo "papel".
+ */
+async function definirPapel(uid, nome, papel, sel) {
+  const anterior = papeis[uid] || 'cliente';
+  if (papel === anterior) return;
+
+  // Trava contra o administrador se remover sozinho e perder o painel
+  if (usuario && uid === usuario.uid && papel !== 'admin') {
+    sel.value = anterior;
+    return msgCli('Você não pode rebaixar o seu próprio acesso de administrador.', true);
+  }
+
+  const rotulos = { cliente: 'Cliente', vendedor: 'Vendedor', admin: 'Administrador' };
+  if (!confirm(`Mudar o acesso de "${nome}" para ${rotulos[papel]}?`)) { sel.value = anterior; return; }
+
+  try {
+    if (papel === 'cliente') {
+      await db.collection('admins').doc(uid).delete();
+    } else {
+      await db.collection('admins').doc(uid).set({
+        nome, papel, promovidoEm: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    msgCli(`${nome} agora é ${rotulos[papel].toLowerCase()}.`, false);
+  } catch (e) {
+    sel.value = anterior;
+    msgCli('Erro: ' + e.message, true);
+  }
 }
 
 async function promoverAdmin(uid, nome) {
@@ -4044,6 +4114,9 @@ function vendAbrir() {
   if (cat) cat.value = '';
   const d = new Date(Date.now() + 3 * 864e5);
   document.getElementById('vend-venc').value = d.toISOString().slice(0, 10);
+  const cfg = document.getElementById('vend-cfg');
+  if (cfg && !cfg.innerHTML) cfg.innerHTML = htmlConfigBoleto('vend');
+  resumoBoleto('vend');
   vendBuscar();
   vendAtualizar();
 }
@@ -4267,7 +4340,7 @@ function vendPrevia() {
     return d.toLocaleDateString('pt-BR');
   });
   alvo.innerHTML = `<div style="font-size:.76rem; color:var(--text-muted); line-height:1.6">
-    Vencimentos: ${datas.join(' · ')}<br><strong>Só o 1º boleto é gerado agora.</strong></div>`;
+    Vencimentos: ${datas.join(' · ')}<br><strong>Todos os boletos são gerados agora.</strong></div>`;
 }
 
 function vendLimpar() {
@@ -4347,13 +4420,14 @@ async function vendFinalizar() {
           pedidoId: ref.id,
           parcelas: Number(document.getElementById('vend-parcelas').value) || 1,
           primeiroVencimento: document.getElementById('vend-venc').value,
+          configBoleto: lerConfigBoleto('vend'),
           token
         })
       });
       const corpo = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(corpo.erro || 'erro ' + r.status);
 
-      toast(`✅ Pedido ${codigo} fechado no boleto.`);
+      toast(`✅ Pedido ${codigo} fechado — ${corpo.emitidos || 0} boleto(s) gerado(s).`);
       if (corpo.linkBoleto && confirm('Abrir o boleto da 1ª parcela para enviar ao cliente?')) {
         window.open(corpo.linkBoleto, '_blank');
       }
@@ -5403,6 +5477,96 @@ function pedidosFiltrados() {
 }
 
 
+
+/* ==================== CONFIGURAÇÃO DO BOLETO ====================
+ * Mesmos ajustes que a Asaas oferece ao emitir um boleto pelo painel dela:
+ * multa por atraso, juros ao mês e desconto por pagamento antecipado.
+ * O bloco é o mesmo nas duas áreas (Administrador e Vendedor); o prefixo
+ * separa os campos de cada uma.
+ */
+const CFG_BOLETO_PADRAO = { multa: 2, multaTipo: 'PERCENTAGE', juros: 1,
+                            desconto: 0, descontoTipo: 'PERCENTAGE', descontoDias: 0 };
+
+function htmlConfigBoleto(pref) {
+  return `
+  <details class="cfg-boleto">
+    <summary>⚙️ Configurar multa, juros e desconto</summary>
+    <div class="cfg-boleto-corpo">
+      <div class="cfg-bol-linha">
+        <div class="field" style="margin-bottom:0">
+          <label>Multa por atraso</label>
+          <input type="number" id="${pref}-multa" min="0" step="0.01" value="2" oninput="resumoBoleto('${pref}')">
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Tipo</label>
+          <select id="${pref}-multa-tipo" onchange="resumoBoleto('${pref}')">
+            <option value="PERCENTAGE">%</option>
+            <option value="FIXED">R$</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:.6rem">
+        <label>Juros ao mês (%)</label>
+        <input type="number" id="${pref}-juros" min="0" max="10" step="0.01" value="1" oninput="resumoBoleto('${pref}')">
+        <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">Cobrado proporcional aos dias de atraso.</p>
+      </div>
+
+      <div class="cfg-bol-linha">
+        <div class="field" style="margin-bottom:0">
+          <label>Desconto antecipado</label>
+          <input type="number" id="${pref}-desconto" min="0" step="0.01" value="0" oninput="resumoBoleto('${pref}')">
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Tipo</label>
+          <select id="${pref}-desconto-tipo" onchange="resumoBoleto('${pref}')">
+            <option value="PERCENTAGE">%</option>
+            <option value="FIXED">R$</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" style="margin:.6rem 0 0">
+        <label>Desconto vale até quantos dias antes do vencimento</label>
+        <input type="number" id="${pref}-desconto-dias" min="0" max="60" step="1" value="0" oninput="resumoBoleto('${pref}')">
+        <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">0 = vale até o dia do vencimento.</p>
+      </div>
+
+      <p id="${pref}-resumo" class="cfg-bol-resumo"></p>
+    </div>
+  </details>`;
+}
+
+// Lê os campos e devolve no formato que o servidor espera
+function lerConfigBoleto(pref) {
+  const v = id => document.getElementById(pref + '-' + id)?.value;
+  return {
+    multa: Number(v('multa')) || 0,
+    multaTipo: v('multa-tipo') || 'PERCENTAGE',
+    juros: Number(v('juros')) || 0,
+    desconto: Number(v('desconto')) || 0,
+    descontoTipo: v('desconto-tipo') || 'PERCENTAGE',
+    descontoDias: Number(v('desconto-dias')) || 0
+  };
+}
+
+// Mostra em texto o que o cliente vai ver no boleto, para conferência
+function resumoBoleto(pref) {
+  const el = document.getElementById(pref + '-resumo');
+  if (!el) return;
+  const c = lerConfigBoleto(pref);
+  const como = (val, tipo) => tipo === 'FIXED' ? fmt(val) : val.toString().replace('.', ',') + '%';
+  const partes = [];
+  if (c.multa > 0) partes.push(`multa de ${como(c.multa, c.multaTipo)} após o vencimento`);
+  if (c.juros > 0) partes.push(`juros de ${String(c.juros).replace('.', ',')}% ao mês`);
+  if (c.desconto > 0) {
+    partes.push(`desconto de ${como(c.desconto, c.descontoTipo)} ` +
+      (c.descontoDias > 0 ? `até ${c.descontoDias} dia(s) antes do vencimento` : 'até o vencimento'));
+  }
+  el.textContent = partes.length
+    ? 'No boleto: ' + partes.join(' · ') + '.'
+    : 'Sem multa, juros ou desconto — o boleto sai só com o valor.';
+}
+
 /* ==================== PARCELAMENTO NO BOLETO ====================
  * Venda parcelada em que a própria loja emite os boletos, um por mês.
  * O plano vive dentro do pedido, em "parcelamento.parcelas".
@@ -5498,6 +5662,9 @@ function abrirParcelamento(pedidoId) {
     const v = (Number(p.total || 0) / n);
     return `<option value="${n}">${n === 1 ? 'À vista' : n + 'x'} de ${fmt(v)}</option>`;
   }).join('');
+  const cfg = document.getElementById('mparc-cfg');
+  if (cfg && !cfg.innerHTML) cfg.innerHTML = htmlConfigBoleto('mparc');
+  resumoBoleto('mparc');
   atualizarPreviaParcelas();
   cx.classList.add('open');
 }
@@ -5521,7 +5688,7 @@ function atualizarPreviaParcelas() {
   });
   alvo.innerHTML = `<div style="font-size:.78rem; color:var(--text-muted); line-height:1.7">
     Vencimentos: ${linhas.join(' · ')}<br>
-    <strong>Só o boleto da 1ª parcela é gerado agora.</strong> Os demais você gera mês a mês.</div>`;
+    <strong>Todos os boletos são gerados agora</strong> — o cliente pode antecipar parcelas se quiser.</div>`;
 }
 
 async function confirmarParcelamento(btn) {
@@ -5536,13 +5703,16 @@ async function confirmarParcelamento(btn) {
     const r = await fetch(api + '/api/criar-parcelamento', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pedidoId, parcelas, primeiroVencimento, token })
+      body: JSON.stringify({ pedidoId, parcelas, primeiroVencimento, token,
+                             configBoleto: lerConfigBoleto('mparc') })
     });
     const corpo = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(corpo.erro || 'erro ' + r.status);
 
     fecharParcelamento();
-    toast(`✅ Parcelamento criado em ${parcelas}x. Boleto da 1ª parcela gerado.`);
+    const falharam = (corpo.total || parcelas) - (corpo.emitidos || 0);
+    toast(`✅ Parcelamento em ${parcelas}x — ${corpo.emitidos || 0} boleto(s) gerado(s).` +
+          (falharam > 0 ? ` ${falharam} falhou(aram); gere pela lista de parcelas.` : ''));
     if (corpo.linkBoleto && confirm('Abrir o boleto da 1ª parcela para enviar ao cliente?')) {
       window.open(corpo.linkBoleto, '_blank');
     }
