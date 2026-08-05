@@ -678,6 +678,21 @@
   body.modo-pdv .side-filtros,
   body.modo-pdv .side-title.filtros-titulo { display:none !important; }
 
+  /* Autocomplete de clientes na Área do Vendedor */
+  .vend-sugestoes { position:absolute; top:100%; left:0; right:0; z-index:50; background:var(--card);
+                    border:1px solid var(--border); border-radius:0 0 10px 10px; box-shadow:var(--shadow-hover);
+                    max-height:230px; overflow-y:auto; display:none; }
+  .vend-sugestoes.open { display:block; }
+  .vend-sug { padding:.55rem .8rem; cursor:pointer; font-size:.85rem; border-bottom:1px solid var(--border); }
+  .vend-sug:last-child { border-bottom:none; }
+  .vend-sug:hover { background:var(--surf-2); }
+  .vend-sug small { display:block; color:var(--text-muted); font-size:.75rem; }
+  .vend-cli-sel { background:var(--ok-bg); color:var(--ok-txt); border-radius:10px; padding:.6rem .8rem;
+                  font-size:.85rem; font-weight:700; margin-bottom:.7rem; display:flex;
+                  justify-content:space-between; align-items:center; gap:.6rem; }
+  .vend-cli-sel button { background:none; border:none; cursor:pointer; color:inherit; font-size:1rem; opacity:.7; }
+  .vend-cli-sel button:hover { opacity:1; }
+
   /* ===== PDV — venda presencial ===== */
   /* O PDV é tela de operação: menos respiro no topo, mais área útil */
   #pdv { margin-top:-.9rem; }
@@ -935,7 +950,8 @@
     <button class="side-btn" data-tab="favoritos" onclick="switchTab('favoritos')"><span class="s-ico">❤️</span> Favoritos <span class="side-badge" id="side-fav-badge" style="display:none">0</span></button>
 
     <div class="side-title">Loja</div>
-    <button class="side-btn" data-tab="admin" onclick="switchTab('admin')"><span class="s-ico">🔐</span> Área do Vendedor</button>
+    <button class="side-btn" data-tab="admin" onclick="switchTab('admin')"><span class="s-ico">🔐</span> Administrador</button>
+    <button class="side-btn" data-tab="vendedor" id="side-vendedor" style="display:none" onclick="switchTab('vendedor')"><span class="s-ico">🧑‍💼</span> Área do Vendedor</button>
   </aside>
 
   <div class="main-area">
@@ -1138,7 +1154,7 @@
         <div style="text-align:center; margin-bottom:1.1rem;">
           <img id="logo-login" class="login-logo" alt="ZAP STORE">
         </div>
-        <h3 style="text-align:center;">🔐 Área do Vendedor</h3>
+        <h3 style="text-align:center;">🔐 Administrador</h3>
         <p style="text-align:center; font-size:.8rem; color:var(--text-muted); margin:-.4rem 0 1rem;">Acesso exclusivo do lojista. Cliente, use o ícone 👤 no topo.</p>
         <div class="msg" id="login-msg"></div>
         <div class="field">
@@ -1160,7 +1176,7 @@
     <div id="admin-panel" style="display:none">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:1.2rem;">
         <div>
-          <h1 class="page-title">Painel do Vendedor</h1>
+          <h1 class="page-title">Painel do Administrador</h1>
           <p class="page-sub" style="margin:0">Gerencie seus produtos e configurações da loja.</p>
         </div>
         <button class="btn-clear" onclick="fazerLogout()">Sair ➜</button>
@@ -1636,6 +1652,117 @@
   </div>
 </div>
 
+  <!-- ===== ÁREA DO VENDEDOR — venda externa, de loja em loja ===== -->
+  <div id="vendedor" class="section">
+    <div class="pdv-topo">
+      <div>
+        <h2 class="pdv-titulo">Área do Vendedor</h2>
+        <p class="pdv-sub" id="vend-hora"></p>
+      </div>
+      <button class="btn-clear" onclick="switchTab('loja')">← Voltar ao catálogo</button>
+    </div>
+
+    <div class="pdv-grid">
+      <!-- Coluna 1: cliente e produtos -->
+      <div>
+        <div class="panel" style="margin-bottom:1rem">
+          <h3 style="margin-bottom:.8rem">👤 Cliente</h3>
+          <div class="field" style="margin-bottom:.7rem; position:relative">
+            <label>Buscar cliente cadastrado *</label>
+            <input type="text" id="vend-cli-busca" placeholder="Digite o nome ou e-mail do cliente"
+                   oninput="vendBuscarCliente()" autocomplete="off">
+            <div id="vend-cli-lista" class="vend-sugestoes"></div>
+          </div>
+          <div id="vend-cli-sel" class="vend-cli-sel" style="display:none"></div>
+
+          <div class="field" style="margin-bottom:.7rem">
+            <label>CPF / CNPJ do cliente *</label>
+            <input type="text" id="vend-cnpj" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)">
+            <p style="font-size:.72rem; color:var(--text-muted); margin-top:4px;">Obrigatório para emitir boleto.</p>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Endereço de entrega</label>
+            <input type="text" id="vend-endereco" placeholder="Rua, número, bairro, cidade">
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="field" style="margin-bottom:.7rem">
+            <label>Buscar produto</label>
+            <input type="text" id="vend-busca" placeholder="Nome ou categoria — comece a digitar"
+                   oninput="vendBuscar()" autocomplete="off">
+          </div>
+          <div class="pdv-filtros">
+            <div class="field" style="margin-bottom:0">
+              <label>Categoria</label>
+              <select id="vend-categoria" onchange="vendBuscar()"><option value="">Todas</option></select>
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label>Ordenar por</label>
+              <select id="vend-ordem" onchange="vendBuscar()">
+                <option value="disp">Disponíveis primeiro</option>
+                <option value="nome">Nome (A-Z)</option>
+                <option value="nome-desc">Nome (Z-A)</option>
+                <option value="preco">Menor preço</option>
+                <option value="preco-desc">Maior preço</option>
+                <option value="estoque-desc">Maior estoque</option>
+              </select>
+            </div>
+          </div>
+          <div class="pdv-res-topo">
+            <span id="vend-contagem"></span>
+            <button class="pdv-limpar" onclick="vendLimparFiltros()">✕ Limpar filtros</button>
+          </div>
+          <div id="vend-resultados" class="pdv-resultados"></div>
+        </div>
+      </div>
+
+      <!-- Coluna 2: pedido -->
+      <div class="panel pdv-cupom">
+        <h3 style="margin-bottom:.7rem">Itens do pedido <span id="vend-qtd-itens" style="font-size:.8rem;color:var(--text-muted);font-weight:400"></span></h3>
+        <div id="vend-itens" class="pdv-itens"></div>
+
+        <div class="pdv-linha"><span>Subtotal</span><strong id="vend-subtotal">R$ 0,00</strong></div>
+        <div class="field" style="margin:.7rem 0 .4rem">
+          <label>Desconto (R$)</label>
+          <input type="number" id="vend-desconto" min="0" step="0.01" value="0" oninput="vendAtualizar()">
+        </div>
+        <div class="pdv-linha total"><span>Total</span><strong id="vend-total">R$ 0,00</strong></div>
+
+        <div class="field" style="margin-top:.9rem">
+          <label>Forma de pagamento</label>
+          <div class="pdv-pags" id="vend-pags">
+            <button class="pdv-pag active" data-pag="Dinheiro" onclick="vendPagamento('Dinheiro')">Dinheiro</button>
+            <button class="pdv-pag" data-pag="Pix" onclick="vendPagamento('Pix')">Pix</button>
+            <button class="pdv-pag" data-pag="Débito" onclick="vendPagamento('Débito')">Débito</button>
+            <button class="pdv-pag" data-pag="Crédito" onclick="vendPagamento('Crédito')">Crédito</button>
+            <button class="pdv-pag" data-pag="Boleto" style="grid-column:1/-1" onclick="vendPagamento('Boleto')">📄 Boleto</button>
+          </div>
+        </div>
+
+        <div id="vend-boleto-box" style="display:none">
+          <div class="field" style="margin-top:.7rem">
+            <label>Em quantas vezes</label>
+            <select id="vend-parcelas" onchange="vendAtualizar()"></select>
+          </div>
+          <div class="field">
+            <label>Vencimento da 1ª parcela</label>
+            <input type="date" id="vend-venc" onchange="vendAtualizar()">
+          </div>
+          <div id="vend-previa" style="margin-bottom:.6rem"></div>
+        </div>
+
+        <div class="field" style="margin-top:.4rem">
+          <label>Observações (opcional)</label>
+          <input type="text" id="vend-obs" placeholder="Ex: entregar na segunda-feira">
+        </div>
+
+        <button class="btn-block btn-pdf" id="vend-finalizar" onclick="vendFinalizar()" disabled>Fechar pedido</button>
+        <button class="btn-block btn-ghost" onclick="vendLimpar()">Cancelar pedido</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== PDV — VENDA PRESENCIAL NA LOJA ===== -->
   <div id="pdv" class="section">
     <div class="pdv-topo">
@@ -1733,7 +1860,7 @@
   <button data-tab="carrinho" onclick="switchTab('carrinho')"><span class="bn-ico">🛒</span>Carrinho<span class="side-badge" id="bn-cart-badge" style="display:none">0</span></button>
   <button data-tab="meuspedidos" onclick="switchTab('meuspedidos')"><span class="bn-ico">📋</span>Pedidos</button>
   <button data-tab="favoritos" onclick="switchTab('favoritos')"><span class="bn-ico">❤️</span>Favoritos</button>
-  <button data-tab="admin" onclick="switchTab('admin')"><span class="bn-ico">🔐</span>Vendedor</button>
+  <button data-tab="admin" onclick="switchTab('admin')"><span class="bn-ico">🔐</span>Admin</button>
 </nav>
 
 <!-- ===== MODAL DE DETALHES DO PRODUTO ===== -->
@@ -1967,11 +2094,12 @@ function switchTab(tab) {
   document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   // O PDV é tela de operação: esconde a busca da loja e os filtros laterais,
   // que só atrapalhariam quem está atendendo no balcão.
-  document.body.classList.toggle('modo-pdv', tab === 'pdv');
+  document.body.classList.toggle('modo-pdv', tab === 'pdv' || tab === 'vendedor');
   if (tab === 'carrinho') renderCarrinho();
   if (tab === 'meuspedidos') renderMeusPedidos();
   if (tab === 'favoritos') renderFavoritos();
   if (tab === 'pdv') pdvAbrir();
+  if (tab === 'vendedor') vendAbrir();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -2044,7 +2172,7 @@ function montarCategorias() {
   const cats = [...new Set(produtos.map(p => p.categoria).filter(Boolean))].sort();
   const opcoes = '<option value="">Todas</option>' + cats.map(c => `<option value="${c}">${c}</option>`).join('');
   // preenche o filtro do celular e o da barra lateral
-  ['f-categoria', 'sf-categoria', 'pdv-categoria', 'adm-prod-categoria'].forEach(id => {
+  ['f-categoria', 'sf-categoria', 'pdv-categoria', 'adm-prod-categoria', 'vend-categoria'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     const atual = sel.value;
@@ -2798,6 +2926,11 @@ auth.onAuthStateChanged(async user => {
   // O aviso de login no carrinho some assim que a pessoa entra
   if (document.getElementById('cart-layout')?.style.display !== 'none') renderCarrinho();
 
+  // A Área do Vendedor fica escondida de quem é cliente comum
+  const btnVend = document.getElementById('side-vendedor');
+  if (btnVend) btnVend.style.display = ehVendedor ? '' : 'none';
+  if (!ehVendedor && document.getElementById('vendedor')?.classList.contains('active')) switchTab('loja');
+
   // Painel do vendedor só aparece para quem é vendedor
   document.getElementById('admin-login').style.display = ehVendedor ? 'none' : 'block';
   document.getElementById('admin-panel').style.display = ehVendedor ? 'block' : 'none';
@@ -2864,6 +2997,13 @@ function toggleUserMenu(ev) {
   if (!usuario) { fecharUserMenu(); abrirModalConta(); return; }
   document.getElementById('user-menu').classList.toggle('open');
 }
+document.addEventListener('click', e => {
+  const cx = document.getElementById('vend-cli-lista');
+  if (cx && !e.target.closest('#vend-cli-busca') && !e.target.closest('#vend-cli-lista')) {
+    cx.classList.remove('open');
+  }
+});
+
 function fecharUserMenu() { document.getElementById('user-menu').classList.remove('open'); }
 document.addEventListener('click', () => fecharUserMenu());
 
@@ -3886,6 +4026,372 @@ function produtoView(v) {
   if (v === 'estoque') renderAdminTable();
 }
 
+
+/* ==================== ÁREA DO VENDEDOR ====================
+ * Venda externa: o vendedor vai de loja em loja com o catálogo.
+ * Diferente do PDV do balcão, aqui a venda é sempre no nome de um CLIENTE
+ * cadastrado — é o que faz o pedido aparecer em "Meus Pedidos" dele.
+ * O pedido nasce em Separação: a mercadoria ainda precisa ser entregue.
+ */
+let vendItens = [];
+let vendFormaPag = 'Dinheiro';
+let vendCliente = null;   // { id (uid), nome, email, ... }
+
+function vendAbrir() {
+  document.getElementById('vend-hora').textContent =
+    new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  const cat = document.getElementById('vend-categoria');
+  if (cat) cat.value = '';
+  const d = new Date(Date.now() + 3 * 864e5);
+  document.getElementById('vend-venc').value = d.toISOString().slice(0, 10);
+  vendBuscar();
+  vendAtualizar();
+}
+
+/* ---------- Cliente ---------- */
+function vendBuscarCliente() {
+  const termo = (document.getElementById('vend-cli-busca').value || '').toLowerCase().trim();
+  const cx = document.getElementById('vend-cli-lista');
+  if (termo.length < 2) { cx.classList.remove('open'); return; }
+
+  const achados = clientes.filter(c =>
+    (c.nome || '').toLowerCase().includes(termo) ||
+    (c.email || '').toLowerCase().includes(termo) ||
+    (c.fone || '').includes(termo)
+  ).slice(0, 8);
+
+  if (!achados.length) {
+    cx.innerHTML = '<div class="vend-sug" style="color:var(--text-muted)">Nenhum cliente com esse nome. Ele precisa ter conta no site.</div>';
+    cx.classList.add('open');
+    return;
+  }
+  cx.innerHTML = achados.map(c => `
+    <div class="vend-sug" onclick="vendEscolherCliente('${c.id}')">
+      <strong>${c.nome || 'Sem nome'}</strong>
+      <small>${c.email || ''}${c.fone ? ' · ' + c.fone : ''}</small>
+    </div>`).join('');
+  cx.classList.add('open');
+}
+
+function vendEscolherCliente(uid) {
+  const c = clientes.find(x => x.id === uid);
+  if (!c) return;
+  vendCliente = c;
+  document.getElementById('vend-cli-lista').classList.remove('open');
+  document.getElementById('vend-cli-busca').value = '';
+
+  const box = document.getElementById('vend-cli-sel');
+  box.style.display = 'flex';
+  box.innerHTML = `<span>✅ ${c.nome || 'Cliente'} <small style="display:block;font-weight:400">${c.email || ''}</small></span>
+                   <button onclick="vendLimparCliente()" title="Trocar cliente">✕</button>`;
+
+  // Reaproveita o que o cliente já cadastrou, para o vendedor não redigitar
+  if (c.cpfCnpj) { document.getElementById('vend-cnpj').value = c.cpfCnpj; mascaraCpfCnpj(document.getElementById('vend-cnpj')); }
+  if (c.endereco) document.getElementById('vend-endereco').value = c.endereco;
+  vendAtualizar();
+}
+
+function vendLimparCliente() {
+  vendCliente = null;
+  document.getElementById('vend-cli-sel').style.display = 'none';
+  document.getElementById('vend-cnpj').value = '';
+  document.getElementById('vend-endereco').value = '';
+  vendAtualizar();
+}
+
+/* ---------- Produtos ---------- */
+function vendBuscar() {
+  const termo = (document.getElementById('vend-busca').value || '').toLowerCase().trim();
+  const categoria = document.getElementById('vend-categoria')?.value || '';
+  const ordem = document.getElementById('vend-ordem')?.value || 'disp';
+  const alvo = document.getElementById('vend-resultados');
+
+  let lista = produtos.filter(p => p.ativo !== false);
+  if (categoria) lista = lista.filter(p => (p.categoria || '') === categoria);
+  if (termo) lista = lista.filter(p => p.nome.toLowerCase().includes(termo) ||
+                                       (p.categoria || '').toLowerCase().includes(termo));
+
+  const est = p => Number(p.estoque) || 0;
+  const preco = p => Number(p.preco) || 0;
+  const porNome = (a, b) => a.nome.localeCompare(b.nome);
+  const achados = lista.sort({
+    'disp':         (a, b) => (est(b) > 0) - (est(a) > 0) || porNome(a, b),
+    'nome':         porNome,
+    'nome-desc':    (a, b) => porNome(b, a),
+    'preco':        (a, b) => preco(a) - preco(b) || porNome(a, b),
+    'preco-desc':   (a, b) => preco(b) - preco(a) || porNome(a, b),
+    'estoque-desc': (a, b) => est(b) - est(a) || porNome(a, b)
+  }[ordem] || porNome);
+
+  const LIMITE = 40;
+  const cont = document.getElementById('vend-contagem');
+  if (cont) cont.textContent = achados.length
+    ? (achados.length > LIMITE ? `Mostrando ${LIMITE} de ${achados.length} produtos` : `${achados.length} produto(s)`)
+    : '';
+
+  const vis = achados.slice(0, LIMITE);
+  if (!vis.length) { alvo.innerHTML = '<div class="pdv-vazio">Nenhum produto encontrado.</div>'; return; }
+
+  alvo.innerHTML = vis.map(p => {
+    const q = est(p);
+    return `
+    <div class="pdv-res">
+      ${getCapa(p) ? `<img src="${getCapa(p)}" alt="">` : ''}
+      <div class="pdv-res-info">
+        <div class="pdv-res-nome">${p.nome}</div>
+        <div class="pdv-res-meta" ${q <= 0 ? 'style="color:var(--alerta-txt);font-weight:700"' : ''}>
+          ${p.categoria || '—'} · ${q > 0 ? q + ' em estoque' : 'sem estoque — vira encomenda'}</div>
+        <div class="pdv-var">
+          <button class="pdv-vbtn" onclick="vendAdicionar('${p.id}')">+ Adicionar <span class="pdv-vqtd">(${q})</span></button>
+        </div>
+      </div>
+      <div class="pdv-res-preco">${fmt(p.preco)}</div>
+    </div>`;
+  }).join('');
+}
+
+function vendLimparFiltros() {
+  document.getElementById('vend-busca').value = '';
+  document.getElementById('vend-categoria').value = '';
+  document.getElementById('vend-ordem').value = 'disp';
+  vendBuscar();
+}
+
+function vendAdicionar(id) {
+  const p = produtos.find(x => x.id === id);
+  if (!p) return;
+  const ex = vendItens.find(i => i.id === id);
+  if (ex) ex.qtd += 1;
+  else vendItens.push({ id, nome: p.nome, preco: Number(p.preco) || 0, qtd: 1 });
+  vendAtualizar();
+}
+
+function vendQtd(idx, delta) {
+  const it = vendItens[idx];
+  if (!it) return;
+  it.qtd += delta;
+  if (it.qtd <= 0) vendItens.splice(idx, 1);
+  vendAtualizar();
+}
+
+function vendRemover(idx) { vendItens.splice(idx, 1); vendAtualizar(); }
+
+// Mesma regra do site: atacado pelo total de unidades do pedido
+function vendUnidades() { return vendItens.reduce((s, i) => s + (Number(i.qtd) || 0), 0); }
+
+function vendPrecoItem(it) {
+  const p = produtos.find(x => x.id === it.id);
+  if (p && temAtacado(p) && vendUnidades() >= QTD_ATACADO) return Number(p.precoAtacado);
+  return it.preco;
+}
+
+function vendSubtotal() { return vendItens.reduce((s, i) => s + vendPrecoItem(i) * i.qtd, 0); }
+
+function vendFaltando(it) {
+  const p = produtos.find(x => x.id === it.id);
+  return Math.max(it.qtd - (p ? (Number(p.estoque) || 0) : 0), 0);
+}
+
+function vendPagamento(forma) {
+  vendFormaPag = forma;
+  document.querySelectorAll('#vend-pags .pdv-pag').forEach(b => b.classList.toggle('active', b.dataset.pag === forma));
+  document.getElementById('vend-boleto-box').style.display = (forma === 'Boleto') ? '' : 'none';
+  vendAtualizar();
+}
+
+function vendAtualizar() {
+  const alvo = document.getElementById('vend-itens');
+  if (!vendItens.length) {
+    alvo.innerHTML = '<div class="pdv-vazio">Nenhum item. Busque o produto ao lado e toque em Adicionar.</div>';
+  } else {
+    alvo.innerHTML = vendItens.map((i, idx) => {
+      const unit = vendPrecoItem(i);
+      const falta = vendFaltando(i);
+      const notas = [unit < i.preco
+        ? `<strong>${fmt(unit)}</strong> un. <s style="opacity:.6">${fmt(i.preco)}</s> · atacado`
+        : `<strong>${fmt(unit)}</strong> un.`];
+      if (falta) notas.push(`⚠️ ${falta} un. em encomenda`);
+      return `
+      <div class="pdv-item">
+        <span class="pdv-item-nome">${i.nome}<small>${notas.join(' · ')}</small></span>
+        <span class="qty-box" style="display:inline-flex">
+          <button onclick="vendQtd(${idx},-1)">−</button><span>${i.qtd}</span><button onclick="vendQtd(${idx},1)">+</button>
+        </span>
+        <span class="pdv-item-tot">${fmt(unit * i.qtd)}</span>
+        <button class="btn-remove" onclick="vendRemover(${idx})" title="Remover">🗑</button>
+      </div>`;
+    }).join('');
+  }
+
+  const sub = vendSubtotal();
+  let desc = parseFloat(document.getElementById('vend-desconto').value) || 0;
+  if (desc < 0) desc = 0;
+  if (desc > sub) desc = sub;
+  const total = sub - desc;
+  const nItens = vendUnidades();
+
+  document.getElementById('vend-qtd-itens').textContent = nItens ? `(${nItens} item${nItens > 1 ? 's' : ''})` : '';
+  document.getElementById('vend-subtotal').textContent = fmt(sub);
+  document.getElementById('vend-total').textContent = fmt(total);
+
+  // Opções de parcelamento acompanham o total
+  const sel = document.getElementById('vend-parcelas');
+  if (sel) {
+    const escolhido = sel.value || '1';
+    sel.innerHTML = Array.from({ length: 10 }, (_, i) => {
+      const n = i + 1;
+      return `<option value="${n}"${String(n) === escolhido ? ' selected' : ''}>${n === 1 ? 'À vista' : n + 'x'} de ${fmt(total / n)}</option>`;
+    }).join('');
+  }
+  if (vendFormaPag === 'Boleto') vendPrevia();
+
+  // Sem cliente não dá para fechar: o pedido precisa de dono
+  const pronto = nItens > 0 && !!vendCliente;
+  const btn = document.getElementById('vend-finalizar');
+  btn.disabled = !pronto;
+  btn.textContent = !vendCliente ? 'Escolha o cliente primeiro'
+                  : !nItens ? 'Adicione produtos'
+                  : `Fechar pedido · ${fmt(total)}`;
+}
+
+function vendPrevia() {
+  const n = Number(document.getElementById('vend-parcelas').value) || 1;
+  const inicio = document.getElementById('vend-venc').value;
+  const alvo = document.getElementById('vend-previa');
+  if (!inicio) { alvo.innerHTML = ''; return; }
+  const [ano, mes, dia] = inicio.split('-').map(Number);
+  const datas = Array.from({ length: n }, (_, i) => {
+    const d = new Date(ano, mes - 1 + i, 1);
+    const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(dia, ultimo));
+    return d.toLocaleDateString('pt-BR');
+  });
+  alvo.innerHTML = `<div style="font-size:.76rem; color:var(--text-muted); line-height:1.6">
+    Vencimentos: ${datas.join(' · ')}<br><strong>Só o 1º boleto é gerado agora.</strong></div>`;
+}
+
+function vendLimpar() {
+  if (vendItens.length && !confirm('Cancelar este pedido e limpar os itens?')) return;
+  vendItens = [];
+  vendLimparCliente();
+  document.getElementById('vend-desconto').value = 0;
+  document.getElementById('vend-obs').value = '';
+  document.getElementById('vend-busca').value = '';
+  document.getElementById('vend-cli-busca').value = '';
+  vendPagamento('Dinheiro');
+  vendBuscar();
+  vendAtualizar();
+}
+
+/* ---------- Fechar o pedido ---------- */
+async function vendFinalizar() {
+  if (!vendItens.length || !vendCliente) return;
+
+  const cpfCnpj = document.getElementById('vend-cnpj').value.replace(/\D/g, '');
+  const noBoleto = vendFormaPag === 'Boleto';
+  if (noBoleto && !cpfCnpj) return toast('⚠️ Informe o CPF/CNPJ do cliente para emitir boleto.');
+  if (cpfCnpj && !cpfCnpjValido(cpfCnpj)) return toast('⚠️ CPF/CNPJ inválido.');
+
+  const endereco = document.getElementById('vend-endereco').value.trim();
+  if (!endereco) return toast('⚠️ Informe o endereço de entrega.');
+
+  const sub = vendSubtotal();
+  let desc = parseFloat(document.getElementById('vend-desconto').value) || 0;
+  if (desc < 0) desc = 0;
+  if (desc > sub) desc = sub;
+  const total = sub - desc;
+
+  const btn = document.getElementById('vend-finalizar');
+  const txt = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ Gravando...';
+
+  try {
+    const codigo = gerarCodigo();
+    const itens = vendItens.map(i => ({ id: i.id, nome: i.nome, preco: vendPrecoItem(i), qtd: i.qtd }));
+    const base = {
+      codigo,
+      canal: 'vendedor',
+      // O pedido sai no nome do CLIENTE: é isso que o faz aparecer em
+      // "Meus Pedidos" dele e permite acompanhar o parcelamento.
+      userId: vendCliente.id,
+      userEmail: vendCliente.email || '',
+      vendedorId: usuario.uid,
+      vendedorNome: perfil?.nome || usuario.email || '',
+      cliente: {
+        nome: vendCliente.nome || 'Cliente',
+        fone: vendCliente.fone || '',
+        cpfCnpj,
+        endereco
+      },
+      obs: document.getElementById('vend-obs').value.trim(),
+      itens,
+      subtotal: Math.round(sub * 100) / 100,
+      desconto: Math.round(desc * 100) / 100,
+      total: Math.round(total * 100) / 100,
+      criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    if (noBoleto) {
+      // No boleto quem baixa estoque e monta as parcelas é o servidor, na
+      // rota de parcelamento. Aqui o pedido nasce aguardando pagamento e o
+      // servidor o move para Separação em seguida.
+      const api = normalizarApi(config.api);
+      if (!api) throw new Error('Servidor de pagamento não configurado — não dá para emitir boleto.');
+
+      const ref = await db.collection('pedidos').add({ ...base, status: 'aguardando_pagamento', origem: 'asaas' });
+      const token = await usuario.getIdToken();
+      const r = await fetch(api + '/api/criar-parcelamento', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pedidoId: ref.id,
+          parcelas: Number(document.getElementById('vend-parcelas').value) || 1,
+          primeiroVencimento: document.getElementById('vend-venc').value,
+          token
+        })
+      });
+      const corpo = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(corpo.erro || 'erro ' + r.status);
+
+      toast(`✅ Pedido ${codigo} fechado no boleto.`);
+      if (corpo.linkBoleto && confirm('Abrir o boleto da 1ª parcela para enviar ao cliente?')) {
+        window.open(corpo.linkBoleto, '_blank');
+      }
+    } else {
+      // Pagamento recebido na hora: baixa o estoque e já vai para Separação
+      const batch = db.batch();
+      for (const it of vendItens) {
+        const prod = produtos.find(p => p.id === it.id);
+        if (!prod) continue;
+        batch.update(db.collection('produtos').doc(it.id),
+          { estoque: Math.max((Number(prod.estoque) || 0) - it.qtd, 0) });
+      }
+      batch.set(db.collection('pedidos').doc(), {
+        ...base,
+        status: 'pendente_envio',
+        estoqueBaixado: true,
+        pagamento: { metodo: vendFormaPag, status: 'RECEIVED', valor: Math.round(total * 100) / 100 },
+        pagoEm: firebase.firestore.FieldValue.serverTimestamp(),
+        aprovadoEm: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      await batch.commit();
+      toast(`✅ Pedido ${codigo} fechado — ${vendFormaPag}.`);
+    }
+
+    vendItens = [];
+    vendLimparCliente();
+    document.getElementById('vend-desconto').value = 0;
+    document.getElementById('vend-obs').value = '';
+    document.getElementById('vend-busca').value = '';
+    vendBuscar();
+    vendAtualizar();
+  } catch (e) {
+    console.error(e);
+    toast('❌ ' + (e.message || 'Erro ao fechar o pedido.'));
+    btn.disabled = false; btn.textContent = txt;
+  }
+}
+
 /* ==================== PDV — VENDA PRESENCIAL ==================== */
 /*
  * Venda feita no balcão da loja física. Diferente do site, aqui o dinheiro já
@@ -4560,8 +5066,10 @@ function renderDashboard() {
     const nomeMet = met === 'PIX' ? 'Pix (online)' : met === 'CREDIT_CARD' ? 'Cartão (online)'
                   : met === 'BOLETO' ? 'Boleto' : met ? met : (p.origem === 'asaas' ? 'Online' : 'WhatsApp');
     porPagamento[nomeMet] = (porPagamento[nomeMet] || 0) + (Number(p.total) || 0);
-    // Balcão x site: a leitura mais útil depois que o PDV entrou
-    const canal = p.canal === 'loja' ? '🏪 Venda na loja' : '🌐 Pelo site';
+    // De onde vem a venda: balcão, vendedor externo ou o próprio site
+    const canal = p.canal === 'loja' ? '🏪 Venda na loja'
+                : p.canal === 'vendedor' ? '🧑‍💼 Vendedor externo'
+                : '🌐 Pelo site';
     porCanal[canal] = (porCanal[canal] || 0) + (Number(p.total) || 0);
     const cli = (p.cliente?.nome || '').trim();
     if (cli) {
@@ -5137,6 +5645,7 @@ function renderPedidos() {
           <strong style="font-size:1.05rem; color:var(--marca-txt)">${p.codigo}</strong>
           <span class="status-badge st-${p.status}">${STATUS_LABEL[p.status] || p.status}</span>
           ${p.canal === 'loja' ? '<span class="pill ok">🏪 Venda na loja</span>' : ''}
+          ${p.canal === 'vendedor' ? `<span class="pill warn">🧑‍💼 ${p.vendedorNome || 'Vendedor'}</span>` : ''}
           ${temParcelasAbertas(p) ? `<span class="parc-tag pt-prazo">📄 ${fmt(saldoParcelamento(p.parcelamento))} a receber</span>` : ''}
         </div>
         <span style="font-size:.8rem; color:var(--text-muted)">${data}</span>
