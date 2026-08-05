@@ -2461,14 +2461,15 @@ async function pagarOnline(btn) {
   } catch (e) { win = null; }
 
   try {
-    // 1) Registra o pedido como RASCUNHO: ele fica invisível para o cliente e para o
-    //    vendedor. Só passa a valer quando o pagamento for confirmado. Assim, se o
-    //    cliente desistir no meio do caminho, nada aparece como pedido.
+    // 1) O pedido já nasce em "aguardando pagamento" e aparece em Meus Pedidos.
+    //    Antes ele ficava como rascunho invisível, mas a cobrança na Asaas é
+    //    gerada de qualquer jeito: quem fechava a aba e pagava o boleto depois
+    //    ficava sem enxergar o pedido a que aquele boleto se referia.
     const doc = await db.collection('pedidos').add({
       ...pedido,
       userId: usuario ? usuario.uid : null,
       userEmail: usuario ? (usuario.email || '') : '',
-      status: 'rascunho',
+      status: 'aguardando_pagamento',
       origem: 'asaas',
       criadoEm: firebase.firestore.FieldValue.serverTimestamp()
     });
@@ -2493,13 +2494,25 @@ async function pagarOnline(btn) {
     if (!linkPagamento) throw new Error('o servidor não devolveu o link');
 
     // Guarda a referência para reconhecer o retorno da Asaas.
-    // O carrinho NÃO é esvaziado: só limpamos depois do pagamento confirmado.
     localStorage.setItem('zap_pagamento_pendente', JSON.stringify({
       pedidoId: doc.id, codigo: pedido.codigo, em: Date.now()
     }));
 
+    // A cobrança existe: o carrinho vira pedido e é esvaziado aqui. Se o cliente
+    // fechar a aba sem pagar, o pedido continua em Meus Pedidos com o botão
+    // "Pagar agora" — e o boleto que a Asaas mandar por e-mail é o desse pedido.
     if (win) win.location.href = linkPagamento;
     else window.location.href = linkPagamento;
+
+    esvaziarCarrinho();
+    if (usuario) {
+      switchTab('meuspedidos');
+      toast(`🧾 Pedido ${pedido.codigo} criado — aguardando pagamento.`);
+    } else {
+      // Sem conta não há como listar os pedidos da pessoa: o código é a única
+      // referência que ela tem para cobrar o vendedor depois.
+      toast(`🧾 Pedido ${pedido.codigo} criado. Anote esse código!`);
+    }
   } catch (e) {
     console.error(e);
     if (win) { try { win.close(); } catch (_) {} }
@@ -2530,28 +2543,19 @@ async function tratarRetornoPagamento() {
   let ref = null;
   try { ref = JSON.parse(localStorage.getItem('zap_pagamento_pendente') || 'null'); } catch (_) {}
 
+  localStorage.removeItem('zap_pagamento_pendente');
+
   if (resultado === 'sucesso' || resultado === 'pendente') {
-    const aprovado = resultado === 'sucesso';
-    if (ref && ref.pedidoId) {
-      try {
-        await db.collection('pedidos').doc(ref.pedidoId).update({
-          // Pagamento aprovado vai direto para separação; boleto/pix emitido fica aguardando.
-          status: aprovado ? 'pendente_envio' : 'aguardando_pagamento',
-          ...(aprovado ? { aprovadoEm: firebase.firestore.FieldValue.serverTimestamp() } : {}),
-          retornoPagamento: resultado,
-          atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
-        });
-      } catch (e) { console.error('Não foi possível atualizar o pedido:', e); }
-    }
-    localStorage.removeItem('zap_pagamento_pendente');
-    esvaziarCarrinho();          // agora sim o carrinho pode ser limpo
+    // Quem dá baixa no pedido é o WEBHOOK da Asaas, não esta página: qualquer
+    // pessoa pode digitar ?pagamento=sucesso na barra de endereços. Aqui só
+    // avisamos o cliente; o status muda sozinho quando o dinheiro cair.
     mostrarAvisoPagamento(resultado, ref && ref.codigo);
     switchTab('meuspedidos');
   } else {
-    // Pagamento não concluído: o rascunho continua invisível e o carrinho segue intacto.
-    localStorage.removeItem('zap_pagamento_pendente');
+    // Nem o carrinho volta nem o pedido some: ele já existe em Meus Pedidos,
+    // com o botão "Pagar agora" para tentar de novo.
     mostrarAvisoPagamento('falha', ref && ref.codigo);
-    switchTab('carrinho');
+    switchTab('meuspedidos');
   }
 }
 
@@ -2565,18 +2569,19 @@ function mostrarAvisoPagamento(tipo, codigo) {
   if (tipo === 'sucesso') {
     ic.textContent = '✅';
     ti.textContent = 'Pagamento concluído!';
-    tx.innerHTML = 'Recebemos a confirmação do seu pagamento' + (codigo ? ` do pedido <strong>${codigo}</strong>` : '') +
-      '.<br>Seu pedido já está na fila de separação e envio. Acompanhe o andamento aqui em <strong>Meus Pedidos</strong>.';
+    tx.innerHTML = 'Recebemos seu pagamento' + (codigo ? ` do pedido <strong>${codigo}</strong>` : '') +
+      '.<br>Assim que o banco confirmar, o pedido passa para a fila de envio automaticamente. Acompanhe aqui em <strong>Meus Pedidos</strong>.';
   } else if (tipo === 'pendente') {
     ic.textContent = '⏳';
     ti.textContent = 'Pagamento em processamento';
     tx.innerHTML = 'Seu pagamento' + (codigo ? ` do pedido <strong>${codigo}</strong>` : '') +
       ' foi registrado e está aguardando confirmação (comum em boleto e Pix).<br>Assim que for confirmado, o pedido segue para o envio.';
   } else {
-    ic.textContent = '🛒';
-    ti.textContent = 'Pagamento não concluído';
-    tx.innerHTML = 'Tudo bem, nada foi cobrado e <strong>seus produtos continuam no carrinho</strong>.<br>' +
-      'Você pode tentar pagar de novo ou enviar o pedido pelo WhatsApp.';
+    ic.textContent = '🕓';
+    ti.textContent = 'Pagamento ainda não confirmado';
+    tx.innerHTML = 'Seu pedido' + (codigo ? ` <strong>${codigo}</strong>` : '') +
+      ' ficou salvo em <strong>Meus Pedidos</strong> como aguardando pagamento.<br>' +
+      'Você pode pagar por ali quando quiser — inclusive pelo boleto ou Pix que a Asaas enviar.';
   }
   cx.classList.add('open');
 }
@@ -3587,6 +3592,12 @@ function renderMeusPedidos() {
       ? `<button class="btn-block btn-pay" style="margin-top:.8rem" onclick="pagarPedidoExistente('${p.id}', this)">💳 Pagar agora</button>`
       : '';
 
+    // Só dá para desistir enquanto o pedido não foi pago. Depois disso a
+    // decisão passa a ser do vendedor (envolve estorno e estoque já baixado).
+    const btnCancelar = aguardando
+      ? `<button class="btn-block btn-ghost" style="margin-top:.5rem" onclick="cancelarMeuPedido('${p.id}', this)">✕ Cancelar pedido</button>`
+      : '';
+
     return `
     <div class="meu-pedido">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
@@ -3605,11 +3616,54 @@ function renderMeusPedidos() {
       </div>
       ${timeline}
       ${btnPagar}
+      ${btnCancelar}
     </div>`;
   }).join('');
 }
 
 // Gera o link de pagamento para um pedido que já existe
+// O cliente desiste de um pedido que ainda não pagou.
+// Pede ao servidor porque a cobrança precisa ser cancelada na Asaas junto —
+// senão o boleto continua valendo e a pessoa recebe cobrança de algo cancelado.
+async function cancelarMeuPedido(pedidoId, btn) {
+  if (!confirm('Cancelar este pedido?\n\nSe já existir um boleto ou Pix gerado, ele deixa de valer.')) return;
+
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Cancelando...';
+
+  try {
+    const api = normalizarApi(config.api);
+    if (api && usuario) {
+      // O token prova ao servidor que o pedido é mesmo desta pessoa
+      const token = await usuario.getIdToken();
+      const r = await fetch(api + '/api/cancelar-pedido', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedidoId, token })
+      });
+      if (!r.ok) {
+        let motivo = 'erro ' + r.status;
+        try { const c = await r.json(); if (c?.erro) motivo = c.erro; } catch (_) {}
+        throw new Error(motivo);
+      }
+    } else {
+      // Sem servidor configurado: cancela só no site (as regras do Firestore
+      // permitem isso apenas no próprio pedido e apenas se não estiver pago).
+      await db.collection('pedidos').doc(pedidoId).update({
+        status: 'cancelado',
+        canceladoEm: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    toast('✅ Pedido cancelado.');
+  } catch (e) {
+    console.error(e);
+    toast('❌ ' + (e.message || 'Não foi possível cancelar.'));
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
+}
+
 async function pagarPedidoExistente(pedidoId, btn) {
   const api = (config.api || '').replace(/\/+$/, '');
   if (!api) return toast('⚠️ Pagamento online não está configurado.');
