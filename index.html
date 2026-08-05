@@ -962,9 +962,9 @@
     <button class="side-btn" data-tab="meuspedidos" onclick="switchTab('meuspedidos')"><span class="s-ico">📋</span> Meus Pedidos</button>
     <button class="side-btn" data-tab="favoritos" onclick="switchTab('favoritos')"><span class="s-ico">❤️</span> Favoritos <span class="side-badge" id="side-fav-badge" style="display:none">0</span></button>
 
-    <div class="side-title">Loja</div>
+    <div class="side-title" id="side-title-loja" style="display:none">Loja</div>
     <button class="side-btn" data-tab="admin" onclick="switchTab('admin')"><span class="s-ico">🔐</span> Administrador</button>
-    <button class="side-btn" data-tab="vendedor" id="side-vendedor" style="display:none" onclick="switchTab('vendedor')"><span class="s-ico">🧑‍💼</span> Área do Vendedor</button>
+    <button class="side-btn" data-tab="vendedor" id="side-vendedor" style="display:none" onclick="switchTab('vendedor')"><span class="s-ico">🧑‍💼</span> Vendedor</button>
   </aside>
 
   <div class="main-area">
@@ -1189,7 +1189,7 @@
     <div id="admin-panel" style="display:none">
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:1.2rem;">
         <div>
-          <h1 class="page-title">Painel do Administrador</h1>
+          <h1 class="page-title">Administrador</h1>
           <p class="page-sub" style="margin:0">Gerencie seus produtos e configurações da loja.</p>
         </div>
         <button class="btn-clear" onclick="fazerLogout()">Sair ➜</button>
@@ -1669,7 +1669,7 @@
   <div id="vendedor" class="section">
     <div class="pdv-topo">
       <div>
-        <h2 class="pdv-titulo">Área do Vendedor</h2>
+        <h2 class="pdv-titulo">Vendedor</h2>
         <p class="pdv-sub" id="vend-hora"></p>
       </div>
       <button class="btn-clear" onclick="switchTab('loja')">← Voltar ao catálogo</button>
@@ -2956,6 +2956,9 @@ auth.onAuthStateChanged(async user => {
   // Painel Administrador: só administrador. O vendedor externo não vê
   // faturamento, custo, configurações da loja nem cadastro de produtos.
   document.querySelectorAll('[data-tab="admin"]').forEach(b => b.style.display = ehAdmin ? '' : 'none');
+  // O título "Loja" só faz sentido se houver alguma área embaixo dele
+  const tituloLoja = document.getElementById('side-title-loja');
+  if (tituloLoja) tituloLoja.style.display = (ehAdmin || ehVendedor) ? '' : 'none';
   if (!ehAdmin && document.getElementById('admin')?.classList.contains('active')) switchTab('loja');
 
   document.getElementById('admin-login').style.display = ehAdmin ? 'none' : 'block';
@@ -3921,6 +3924,7 @@ function renderMeusPedidos() {
       </div>
       ${timeline}
       ${p.parcelamento ? htmlParcelas(p, false) : ''}
+      <button class="btn-block btn-ghost" style="margin-top:.8rem" onclick="exportarPedidoPDF('${p.id}')">📄 Baixar PDF do pedido</button>
       ${btnPagar}
       ${btnCancelar}
     </div>`;
@@ -5992,7 +5996,9 @@ async function fotosDosItens(itens) {
 }
 
 async function exportarPedidoPDF(id) {
-  const p = pedidos.find(x => x.id === id);
+  // O vendedor enxerga "pedidos"; o cliente, só "meusPedidos". Procurar nos
+  // dois deixa a mesma função servir às duas telas.
+  const p = pedidos.find(x => x.id === id) || meusPedidos.find(x => x.id === id);
   if (!p) return;
   toast('⏳ Gerando PDF...');
 
