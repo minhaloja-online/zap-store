@@ -1693,44 +1693,8 @@
     </div>
 
     <div class="pdv-grid">
-      <!-- Coluna 1: cliente e produtos -->
+      <!-- Coluna 1: busca de produtos -->
       <div>
-        <div class="panel" style="margin-bottom:1rem">
-          <h3 style="margin-bottom:.8rem">👤 Cliente</h3>
-          <div class="field" style="margin-bottom:.6rem">
-            <div class="pdv-cli-modo">
-              <button class="pdv-pag active" data-vmodo="cadastrado" onclick="vendModoCliente('cadastrado')">Cadastrado</button>
-              <button class="pdv-pag" data-vmodo="avulso" onclick="vendModoCliente('avulso')">Avulso</button>
-            </div>
-          </div>
-
-          <div id="vend-cli-box">
-            <div class="field" style="margin-bottom:.6rem; position:relative">
-              <input type="text" id="vend-cli-busca" placeholder="Digite o nome ou e-mail do cliente"
-                     oninput="vendBuscarCliente()" autocomplete="off">
-              <div id="vend-cli-lista" class="vend-sugestoes"></div>
-            </div>
-            <div id="vend-cli-sel" class="vend-cli-sel" style="display:none"></div>
-            <button class="btn-clear" style="width:100%; margin-bottom:.7rem" onclick="abrirNovoCliente('vend')">➕ Cadastrar novo cliente</button>
-          </div>
-
-          <div id="vend-cli-avulso" class="field" style="display:none; margin-bottom:.7rem">
-            <label>Nome do cliente</label>
-            <input type="text" id="vend-cli-nome" placeholder="Nome de quem comprou" oninput="vendAtualizar()">
-            <p style="font-size:.72rem; color:var(--text-muted); margin-top:4px;">Venda sem vínculo — não aparece em "Meus Pedidos" de ninguém.</p>
-          </div>
-
-          <div class="field" style="margin-bottom:.7rem">
-            <label>CPF / CNPJ do cliente *</label>
-            <input type="text" id="vend-cnpj" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)">
-            <p style="font-size:.72rem; color:var(--text-muted); margin-top:4px;">Obrigatório para emitir boleto.</p>
-          </div>
-          <div class="field" style="margin-bottom:0">
-            <label>Endereço de entrega</label>
-            <input type="text" id="vend-endereco" placeholder="Rua, número, bairro, cidade">
-          </div>
-        </div>
-
         <div class="panel">
           <div class="field" style="margin-bottom:.7rem">
             <label>Buscar produto</label>
@@ -1787,6 +1751,11 @@
 
         <div id="vend-boleto-box" style="display:none">
           <div class="field" style="margin-top:.7rem">
+            <label>CPF / CNPJ do cliente *</label>
+            <input type="text" id="vend-cnpj" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)">
+            <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">A Asaas exige o documento para emitir boleto.</p>
+          </div>
+          <div class="field">
             <label>Em quantas vezes</label>
             <select id="vend-parcelas" onchange="vendAtualizar()"></select>
           </div>
@@ -1796,6 +1765,34 @@
           </div>
           <div id="vend-previa" style="margin-bottom:.6rem"></div>
           <div id="vend-cfg"></div>
+        </div>
+
+        <div class="field" style="margin-top:.9rem">
+          <label>Cliente</label>
+          <div class="pdv-cli-modo">
+            <button class="pdv-pag active" data-vmodo="cadastrado" onclick="vendModoCliente('cadastrado')">Cadastrado</button>
+            <button class="pdv-pag" data-vmodo="avulso" onclick="vendModoCliente('avulso')">Avulso</button>
+          </div>
+        </div>
+
+        <div id="vend-cli-box">
+          <div class="field" style="margin-bottom:.5rem; position:relative">
+            <input type="text" id="vend-cli-busca" placeholder="Digite o nome ou e-mail do cliente"
+                   oninput="vendBuscarCliente()" autocomplete="off">
+            <div id="vend-cli-lista" class="vend-sugestoes"></div>
+          </div>
+          <div id="vend-cli-sel" class="vend-cli-sel" style="display:none"></div>
+          <button class="btn-clear" style="width:100%; margin-bottom:.5rem" onclick="abrirNovoCliente('vend')">➕ Cadastrar novo cliente</button>
+        </div>
+
+        <div id="vend-cli-avulso" class="field" style="display:none">
+          <input type="text" id="vend-cli-nome" placeholder="Nome de quem comprou (opcional)" oninput="vendAtualizar()">
+          <p style="font-size:.72rem; color:var(--text-muted); margin-top:4px;">Venda sem vínculo — não aparece em "Meus Pedidos" de ninguém.</p>
+        </div>
+
+        <div class="field">
+          <label>Endereço de entrega *</label>
+          <input type="text" id="vend-endereco" placeholder="Rua, número, bairro, cidade">
         </div>
 
         <div class="field" style="margin-top:.4rem">
