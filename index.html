@@ -215,6 +215,13 @@
     font-size: .88rem; cursor: pointer; color: var(--text); font-family: inherit; display: flex; gap: .55rem; align-items: center;
   }
   .user-menu button:hover { background: #f2f6fb; }
+  /* Áreas internas: no computador o acesso é pela lateral, então só aparecem
+     no celular, onde a lateral fica escondida. "sem-acesso" esconde sempre. */
+  .user-menu .um-area { display: none; border-top: 1px solid var(--border); }
+  .user-menu .um-area + .um-area { border-top: none; }
+  @media (max-width: 900px) {
+    .user-menu .um-area:not(.sem-acesso) { display: flex; }
+  }
 
   /* ===== SHELL: sidebar + conteúdo ===== */
   .app-shell { display: block; padding-top: var(--topbar-h); }
@@ -263,12 +270,7 @@
     .bottom-nav button.active { color: var(--marca-txt); }
     .bottom-nav .bn-ico { font-size: 1.22rem; }
     .bottom-nav .side-badge { position: absolute; top: 2px; right: 22%; margin: 0; }
-    /* Com Admin e Vendedor visíveis são 6 itens: aperta um pouco para caber
-       sem quebrar linha em tela estreita. */
-    @media (max-width: 420px) {
-      .bottom-nav button { font-size: .6rem; padding: .5rem .1rem .55rem; }
-      .bottom-nav .bn-ico { font-size: 1.1rem; }
-    }
+
     body { padding-bottom: 62px; }
   }
 
@@ -915,6 +917,8 @@
           <button onclick="abrirPerfil(); fecharUserMenu()">👤 Meu Perfil</button>
           <button onclick="switchTab('meuspedidos'); fecharUserMenu()">📋 Meus Pedidos</button>
           <button onclick="switchTab('favoritos'); fecharUserMenu()">❤️ Meus Favoritos</button>
+          <button class="um-area" data-tab="vendedor" style="display:none" onclick="switchTab('vendedor'); fecharUserMenu()">🧑‍💼 Vendedor</button>
+          <button class="um-area" data-tab="admin" style="display:none" onclick="switchTab('admin'); fecharUserMenu()">🔐 Administrador</button>
           <button onclick="sairConta()">🚪 Sair da conta</button>
         </div>
         <div id="um-deslogado">
@@ -1940,8 +1944,6 @@
   <button data-tab="carrinho" onclick="switchTab('carrinho')"><span class="bn-ico">🛒</span>Carrinho<span class="side-badge" id="bn-cart-badge" style="display:none">0</span></button>
   <button data-tab="meuspedidos" onclick="switchTab('meuspedidos')"><span class="bn-ico">📋</span>Pedidos</button>
   <button data-tab="favoritos" onclick="switchTab('favoritos')"><span class="bn-ico">❤️</span>Favoritos</button>
-  <button data-tab="admin" onclick="switchTab('admin')"><span class="bn-ico">🔐</span>Admin</button>
-  <button data-tab="vendedor" id="bn-vendedor" style="display:none" onclick="switchTab('vendedor')"><span class="bn-ico">🧑‍💼</span>Vendedor</button>
 </nav>
 
 <!-- ===== MODAL DE DETALHES DO PRODUTO ===== -->
@@ -3153,12 +3155,20 @@ auth.onAuthStateChanged(async user => {
 
   // Área do Vendedor: administrador e vendedor. Cliente comum nem vê o botão.
   // Vale para os dois menus: a lateral do computador e a barra do celular.
-  document.querySelectorAll('[data-tab="vendedor"]').forEach(b => b.style.display = ehVendedor ? '' : 'none');
+  // Lateral usa display direto; o menu do usuário usa classe, senão o estilo
+  // inline venceria a regra que limita esses itens ao celular.
+  document.querySelectorAll('[data-tab="vendedor"]:not(.um-area)')
+    .forEach(b => b.style.display = ehVendedor ? '' : 'none');
+  document.querySelectorAll('.um-area[data-tab="vendedor"]')
+    .forEach(b => b.classList.toggle('sem-acesso', !ehVendedor));
   if (!ehVendedor && document.getElementById('vendedor')?.classList.contains('active')) switchTab('loja');
 
   // Painel Administrador: só administrador. O vendedor externo não vê
   // faturamento, custo, configurações da loja nem cadastro de produtos.
-  document.querySelectorAll('[data-tab="admin"]').forEach(b => b.style.display = ehAdmin ? '' : 'none');
+  document.querySelectorAll('[data-tab="admin"]:not(.um-area)')
+    .forEach(b => b.style.display = ehAdmin ? '' : 'none');
+  document.querySelectorAll('.um-area[data-tab="admin"]')
+    .forEach(b => b.classList.toggle('sem-acesso', !ehAdmin));
   // O título "Loja" só faz sentido se houver alguma área embaixo dele
   const tituloLoja = document.getElementById('side-title-loja');
   if (tituloLoja) tituloLoja.style.display = (ehAdmin || ehVendedor) ? '' : 'none';
@@ -3269,6 +3279,32 @@ function msgConta(txt, erro) {
   el.textContent = txt;
 }
 
+/*
+ * Quando o login por senha falha, pode ser que a conta exista mas tenha sido
+ * criada pelo Google — e aí ela simplesmente não tem senha. A senha do Google
+ * pertence ao Google e nunca chega até aqui, então "e-mail ou senha
+ * incorretos" deixa a pessoa tentando de novo sem entender o motivo.
+ *
+ * Só entra em ação depois de a senha ser recusada, e só devolve a dica quando
+ * o Firebase confirma que o único jeito de entrar é pelo Google.
+ */
+async function dicaLoginGoogle(email) {
+  if (!email) return null;
+  try {
+    const metodos = await auth.fetchSignInMethodsForEmail(email);
+    // Lista vazia costuma significar que a Proteção contra Enumeração de
+    // E-mails está ligada no Firebase: nesse caso não dá para saber, e o
+    // silêncio é melhor do que uma dica errada.
+    if (!metodos || !metodos.length) return null;
+    const soGoogle = metodos.includes('google.com') && !metodos.includes('password');
+    if (!soGoogle) return null;
+    return 'Esta conta foi criada com o Google. Entre pelo botão "Continuar com Google", ' +
+           'ou use "Esqueci minha senha" para criar uma senha para ela.';
+  } catch (_) {
+    return null;
+  }
+}
+
 function traduzErroAuth(e) {
   const c = e.code || '';
   if (c.includes('email-already-in-use')) return 'Este e-mail já tem uma conta. Tente entrar.';
@@ -3314,7 +3350,8 @@ async function submeterConta() {
     fecharModalConta();
     document.getElementById('conta-senha').value = '';
   } catch (e) {
-    msgConta(traduzErroAuth(e), true);
+    const dica = await dicaLoginGoogle(email);
+    msgConta(dica || traduzErroAuth(e), true);
   }
   btn.disabled = false;
   btn.textContent = modoAtualConta === 'criar' ? 'Criar minha conta' : 'Entrar';
@@ -6822,7 +6859,12 @@ function fazerLogin() {
   msg.className = 'msg';
   auth.signInWithEmailAndPassword(email, senha)
     .then(() => { toast('✅ Bem-vindo!'); })
-    .catch(e => { msg.className = 'msg err'; msg.textContent = 'Email ou senha incorretos.'; console.error(e); });
+    .catch(async e => {
+      console.error(e);
+      const dica = await dicaLoginGoogle(email);
+      msg.className = 'msg err';
+      msg.textContent = dica || traduzErroAuth(e);
+    });
 }
 function fazerLogout() { auth.signOut(); switchTab('loja'); }
 
