@@ -703,6 +703,8 @@
   .cfg-bol-resumo { font-size:.76rem; color:var(--text-muted); background:var(--card); border-radius:8px;
                     padding:.55rem .7rem; margin-top:.8rem; line-height:1.5; }
 
+  .pdv-cli-modo { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+
   /* Autocomplete de clientes na Área do Vendedor */
   .vend-sugestoes { position:absolute; top:100%; left:0; right:0; z-index:50; background:var(--card);
                     border:1px solid var(--border); border-radius:0 0 10px 10px; box-shadow:var(--shadow-hover);
@@ -720,7 +722,7 @@
 
   /* ===== PDV — venda presencial ===== */
   /* O PDV é tela de operação: menos respiro no topo, mais área útil */
-  #pdv { margin-top:-.9rem; }
+  #pdv, #vendedor { margin-top:-.9rem; }
   .pdv-topo { display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; margin-bottom:.9rem; flex-wrap:wrap; }
   .pdv-titulo { font-family: var(--fonte-titulo); font-size:1.7rem; color:var(--marca-txt); }
   .pdv-sub { font-size:.82rem; color:var(--text-muted); margin-top:4px; }
@@ -1858,6 +1860,7 @@
             <button class="pdv-pag" data-pag="Pix" onclick="pdvPagamento('Pix')">Pix</button>
             <button class="pdv-pag" data-pag="Débito" onclick="pdvPagamento('Débito')">Débito</button>
             <button class="pdv-pag" data-pag="Crédito" onclick="pdvPagamento('Crédito')">Crédito</button>
+            <button class="pdv-pag" data-pag="Boleto" style="grid-column:1/-1" onclick="pdvPagamento('Boleto')">📄 Boleto</button>
           </div>
         </div>
 
@@ -1867,9 +1870,45 @@
           <p id="pdv-troco" style="font-size:.9rem;font-weight:800;margin-top:6px"></p>
         </div>
 
-        <div class="field" style="margin-top:.4rem">
-          <label>Cliente (opcional)</label>
-          <input type="text" id="pdv-cliente" placeholder="Nome de quem comprou">
+        <div id="pdv-boleto-box" style="display:none">
+          <div class="field" style="margin-top:.7rem">
+            <label>CPF / CNPJ do cliente *</label>
+            <input type="text" id="pdv-cnpj" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)">
+            <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">A Asaas exige o documento para emitir boleto.</p>
+          </div>
+          <div class="field">
+            <label>Em quantas vezes</label>
+            <select id="pdv-parcelas" onchange="pdvAtualizar()"></select>
+          </div>
+          <div class="field">
+            <label>Vencimento da 1ª parcela</label>
+            <input type="date" id="pdv-venc" onchange="pdvAtualizar()">
+          </div>
+          <div id="pdv-previa" style="margin-bottom:.6rem"></div>
+          <div id="pdv-cfg"></div>
+        </div>
+
+        <div class="field" style="margin-top:.6rem">
+          <label>Cliente</label>
+          <div class="pdv-cli-modo">
+            <button class="pdv-pag active" data-cmodo="avulso" onclick="pdvModoCliente('avulso')">Avulso</button>
+            <button class="pdv-pag" data-cmodo="cadastrado" onclick="pdvModoCliente('cadastrado')">Cadastrado</button>
+          </div>
+        </div>
+
+        <div id="pdv-cli-avulso" class="field" style="margin-top:.5rem">
+          <input type="text" id="pdv-cliente" placeholder="Nome de quem comprou (opcional)">
+          <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">Venda sem vínculo — não aparece em "Meus Pedidos" de ninguém.</p>
+        </div>
+
+        <div id="pdv-cli-box" style="display:none">
+          <div class="field" style="margin-bottom:.5rem; position:relative">
+            <input type="text" id="pdv-cli-busca" placeholder="Digite o nome ou e-mail do cliente"
+                   oninput="pdvBuscarCliente()" autocomplete="off">
+            <div id="pdv-cli-lista" class="vend-sugestoes"></div>
+          </div>
+          <div id="pdv-cli-sel" class="vend-cli-sel" style="display:none"></div>
+          <button class="btn-clear" style="width:100%; margin-bottom:.5rem" onclick="abrirNovoCliente()">➕ Cadastrar novo cliente</button>
         </div>
 
         <div id="pdv-encomenda" class="dash-aviso" style="display:none; margin:.9rem 0 .2rem; font-size:.8rem;"></div>
@@ -1990,6 +2029,46 @@
 </div>
 
 <!-- ===== AVISO DE RETORNO DO PAGAMENTO ===== -->
+<!-- ===== Cadastro rápido de cliente (balcão) ===== -->
+<div class="modal-bg" id="modal-novo-cliente" onclick="if(event.target===this) fecharNovoCliente()">
+  <div class="modal" style="max-width:430px">
+    <button class="modal-close" onclick="fecharNovoCliente()">×</button>
+    <div style="padding:1.6rem">
+      <h3 style="color:var(--marca-txt); margin-bottom:.3rem">➕ Cadastrar cliente</h3>
+      <p style="font-size:.83rem; color:var(--text-muted); margin-bottom:1.1rem">
+        A conta é criada na hora e o cliente já consegue acompanhar os pedidos pelo site.
+      </p>
+
+      <div class="field">
+        <label>Nome completo *</label>
+        <input type="text" id="nc-nome" placeholder="Nome do cliente">
+      </div>
+      <div class="field">
+        <label>E-mail *</label>
+        <input type="email" id="nc-email" placeholder="cliente@email.com" autocomplete="off">
+        <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">É com ele que o cliente entra no site.</p>
+      </div>
+      <div class="field">
+        <label>Telefone</label>
+        <input type="tel" id="nc-fone" placeholder="(00) 00000-0000">
+      </div>
+      <div class="field">
+        <label>CPF / CNPJ</label>
+        <input type="text" id="nc-cpf" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)">
+      </div>
+      <div class="field">
+        <label>Senha provisória *</label>
+        <input type="text" id="nc-senha" value="" placeholder="Mínimo 6 caracteres">
+        <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">Anote e entregue ao cliente. Ele pode trocar depois em "Esqueci minha senha".</p>
+      </div>
+
+      <p id="nc-msg" class="msg" style="display:none"></p>
+      <button class="btn-block btn-pdf" onclick="salvarNovoCliente(this)">Criar conta e selecionar</button>
+      <button class="btn-block btn-ghost" onclick="fecharNovoCliente()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== Aprovar via boleto: escolher parcelas ===== -->
 <div class="modal-bg" id="modal-parcelar" onclick="if(event.target===this) fecharParcelamento()">
   <div class="modal" style="max-width:460px">
@@ -2094,6 +2173,33 @@ function alternarNoite() {
   if (typeof aplicarTema === 'function' && typeof tema !== 'undefined') aplicarTema(tema);
 }
 
+/* ==================== ALTURA DA BARRA SUPERIOR ====================
+ * A altura estava fixa no CSS (66px no computador, 108px no celular por causa
+ * da linha de busca). Só que a barra muda de tamanho na prática: no PDV e na
+ * Área do Vendedor a busca some, e o tamanho da fonte é configurável nas
+ * Configurações da Loja. Quando o CSS reserva mais espaço do que a barra
+ * ocupa, sobra um vazio no topo; quando reserva menos, o conteúdo fica por
+ * baixo dela. Medir a barra de verdade resolve os dois casos.
+ */
+function ajustarAlturaTopo() {
+  const barra = document.querySelector('.topbar');
+  if (!barra) return;
+  const altura = Math.round(barra.getBoundingClientRect().height);
+  if (altura > 0) document.documentElement.style.setProperty('--topbar-h', altura + 'px');
+}
+
+function iniciarAlturaTopo() {
+  ajustarAlturaTopo();
+  // Reage a qualquer coisa que mexa no tamanho da barra: girar o celular,
+  // trocar de aba (a busca some), mudar a fonte, carregar a logo.
+  if ('ResizeObserver' in window) {
+    new ResizeObserver(ajustarAlturaTopo).observe(document.querySelector('.topbar'));
+  } else {
+    window.addEventListener('resize', ajustarAlturaTopo);
+  }
+  window.addEventListener('orientationchange', () => setTimeout(ajustarAlturaTopo, 120));
+}
+
 function iniciarNoite() {
   let escolha = null;
   try { escolha = localStorage.getItem(CHAVE_NOITE); } catch (_) {}
@@ -2126,6 +2232,9 @@ function switchTab(tab) {
   // O PDV é tela de operação: esconde a busca da loja e os filtros laterais,
   // que só atrapalhariam quem está atendendo no balcão.
   document.body.classList.toggle('modo-pdv', tab === 'pdv' || tab === 'vendedor');
+  // A busca some no PDV e na Área do Vendedor: a barra encolhe e o espaço
+  // reservado precisa encolher junto.
+  requestAnimationFrame(ajustarAlturaTopo);
   if (tab === 'carrinho') renderCarrinho();
   if (tab === 'meuspedidos') renderMeusPedidos();
   if (tab === 'favoritos') renderFavoritos();
@@ -3110,10 +3219,10 @@ function toggleUserMenu(ev) {
   document.getElementById('user-menu').classList.toggle('open');
 }
 document.addEventListener('click', e => {
-  const cx = document.getElementById('vend-cli-lista');
-  if (cx && !e.target.closest('#vend-cli-busca') && !e.target.closest('#vend-cli-lista')) {
-    cx.classList.remove('open');
-  }
+  [['vend-cli-lista', 'vend-cli-busca'], ['pdv-cli-lista', 'pdv-cli-busca']].forEach(([lista, campo]) => {
+    const cx = document.getElementById(lista);
+    if (cx && !e.target.closest('#' + campo) && !e.target.closest('#' + lista)) cx.classList.remove('open');
+  });
 });
 
 function fecharUserMenu() { document.getElementById('user-menu').classList.remove('open'); }
@@ -4217,7 +4326,7 @@ function vendBuscarCliente() {
   const achados = clientes.filter(c =>
     (c.nome || '').toLowerCase().includes(termo) ||
     (c.email || '').toLowerCase().includes(termo) ||
-    (c.fone || '').includes(termo)
+    (c.telefone || '').includes(termo)
   ).slice(0, 8);
 
   if (!achados.length) {
@@ -4228,7 +4337,7 @@ function vendBuscarCliente() {
   cx.innerHTML = achados.map(c => `
     <div class="vend-sug" onclick="vendEscolherCliente('${c.id}')">
       <strong>${c.nome || 'Sem nome'}</strong>
-      <small>${c.email || ''}${c.fone ? ' · ' + c.fone : ''}</small>
+      <small>${c.email || ''}${c.telefone ? ' · ' + c.telefone : ''}</small>
     </div>`).join('');
   cx.classList.add('open');
 }
@@ -4479,7 +4588,7 @@ async function vendFinalizar() {
       vendedorNome: perfil?.nome || usuario.email || '',
       cliente: {
         nome: vendCliente.nome || 'Cliente',
-        fone: vendCliente.fone || '',
+        fone: vendCliente.telefone || '',
         cpfCnpj,
         endereco
       },
@@ -4568,9 +4677,172 @@ function pdvAbrir() {
   document.getElementById('pdv-busca').value = '';
   const cat = document.getElementById('pdv-categoria');
   if (cat) cat.value = '';
+  const cfg = document.getElementById('pdv-cfg');
+  if (cfg && !cfg.innerHTML) cfg.innerHTML = htmlConfigBoleto('pdv');
+  resumoBoleto('pdv');
+  const dv = document.getElementById('pdv-venc');
+  if (dv && !dv.value) dv.value = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
   pdvBuscar();
   pdvAtualizar();
   setTimeout(() => { const b = document.getElementById('pdv-busca'); if (b) b.focus(); }, 120);
+}
+
+
+/* ---------- Cliente da venda de balcão ----------
+ * Três caminhos: avulso (sem vínculo), cliente já cadastrado, ou cadastrar
+ * na hora. Vincular o pedido a uma conta é o que faz ele aparecer em
+ * "Meus Pedidos" do cliente — importante quando a venda é no boleto.
+ */
+let pdvCliente = null;        // cliente cadastrado escolhido
+let pdvModo = 'avulso';
+
+function pdvModoCliente(modo) {
+  pdvModo = modo;
+  document.querySelectorAll('[data-cmodo]').forEach(b => b.classList.toggle('active', b.dataset.cmodo === modo));
+  document.getElementById('pdv-cli-avulso').style.display = modo === 'avulso' ? '' : 'none';
+  document.getElementById('pdv-cli-box').style.display = modo === 'cadastrado' ? '' : 'none';
+  if (modo === 'avulso') pdvLimparCliente();
+  pdvAtualizar();
+}
+
+// Dados do cliente para gravar no pedido. Com cliente cadastrado o pedido
+// ganha dono (userId) e aparece em "Meus Pedidos" dele; avulso fica sem.
+function pdvDadosCliente(cpfCnpj) {
+  if (pdvModo === 'cadastrado' && pdvCliente) {
+    return {
+      userId: pdvCliente.id,
+      userEmail: pdvCliente.email || '',
+      cliente: {
+        nome: pdvCliente.nome || 'Cliente',
+        fone: pdvCliente.telefone || '',
+        cpfCnpj: cpfCnpj || pdvCliente.cpfCnpj || '',
+        endereco: 'Retirada na loja'
+      }
+    };
+  }
+  const nome = (document.getElementById('pdv-cliente').value || '').trim() || 'Venda na loja';
+  return {
+    userId: null,
+    userEmail: '',
+    cliente: { nome, fone: '', cpfCnpj: cpfCnpj || '', endereco: 'Retirada na loja' }
+  };
+}
+
+function pdvBuscarCliente() {
+  const termo = (document.getElementById('pdv-cli-busca').value || '').toLowerCase().trim();
+  const cx = document.getElementById('pdv-cli-lista');
+  if (termo.length < 2) { cx.classList.remove('open'); return; }
+
+  const achados = clientes.filter(c =>
+    (c.nome || '').toLowerCase().includes(termo) ||
+    (c.email || '').toLowerCase().includes(termo) ||
+    (c.telefone || '').includes(termo)
+  ).slice(0, 8);
+
+  cx.innerHTML = achados.length
+    ? achados.map(c => `
+      <div class="vend-sug" onclick="pdvEscolherCliente('${c.id}')">
+        <strong>${c.nome || 'Sem nome'}</strong>
+        <small>${c.email || ''}${c.telefone ? ' · ' + c.telefone : ''}</small>
+      </div>`).join('')
+    : '<div class="vend-sug" style="color:var(--text-muted)">Nenhum cliente com esse nome. Use "Cadastrar novo cliente".</div>';
+  cx.classList.add('open');
+}
+
+function pdvEscolherCliente(uid) {
+  const c = clientes.find(x => x.id === uid);
+  if (!c) return;
+  pdvCliente = c;
+  document.getElementById('pdv-cli-lista').classList.remove('open');
+  document.getElementById('pdv-cli-busca').value = '';
+
+  const box = document.getElementById('pdv-cli-sel');
+  box.style.display = 'flex';
+  box.innerHTML = `<span>✅ ${c.nome || 'Cliente'} <small style="display:block;font-weight:400">${c.email || ''}</small></span>
+                   <button onclick="pdvLimparCliente()" title="Trocar cliente">✕</button>`;
+
+  // Aproveita o documento já cadastrado, útil quando a venda for no boleto
+  const campoCpf = document.getElementById('pdv-cnpj');
+  if (c.cpfCnpj && campoCpf && !campoCpf.value) { campoCpf.value = c.cpfCnpj; mascaraCpfCnpj(campoCpf); }
+  pdvAtualizar();
+}
+
+function pdvLimparCliente() {
+  pdvCliente = null;
+  const box = document.getElementById('pdv-cli-sel');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+  const busca = document.getElementById('pdv-cli-busca');
+  if (busca) busca.value = '';
+}
+
+/* ---------- Cadastro rápido ---------- */
+function abrirNovoCliente() {
+  ['nc-nome', 'nc-email', 'nc-fone', 'nc-cpf'].forEach(id => document.getElementById(id).value = '');
+  // Senha sugerida: o vendedor anota e entrega. O cliente troca depois.
+  document.getElementById('nc-senha').value = 'zap' + Math.random().toString(36).slice(2, 8);
+  document.getElementById('nc-msg').style.display = 'none';
+  document.getElementById('modal-novo-cliente').classList.add('open');
+}
+
+function fecharNovoCliente() {
+  document.getElementById('modal-novo-cliente').classList.remove('open');
+}
+
+async function salvarNovoCliente(btn) {
+  const nome = document.getElementById('nc-nome').value.trim();
+  const email = document.getElementById('nc-email').value.trim();
+  const fone = document.getElementById('nc-fone').value.trim();
+  const cpf = document.getElementById('nc-cpf').value.replace(/\D/g, '');
+  const senha = document.getElementById('nc-senha').value;
+  const msg = document.getElementById('nc-msg');
+  const aviso = (txt, erro) => { msg.style.display = 'block'; msg.className = 'msg ' + (erro ? 'err' : 'ok'); msg.textContent = txt; };
+
+  if (!nome) return aviso('Digite o nome do cliente.', true);
+  if (!email) return aviso('Digite o e-mail — é com ele que o cliente entra no site.', true);
+  if (senha.length < 6) return aviso('A senha precisa ter ao menos 6 caracteres.', true);
+  if (cpf && !cpfCnpjValido(cpf)) return aviso('CPF/CNPJ inválido.', true);
+
+  const txt = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ Criando...';
+  let appTemp = null;
+  try {
+    // Criar a conta pela sessão normal derrubaria o login do vendedor: o
+    // Firebase troca o usuário logado ao criar uma conta. Um app secundário
+    // faz o cadastro isolado, sem mexer em quem está operando o caixa.
+    appTemp = firebase.initializeApp(firebaseConfig, 'cadastroBalcao-' + Date.now());
+    const cred = await appTemp.auth().createUserWithEmailAndPassword(email, senha);
+    const uid = cred.user.uid;
+    await cred.user.updateProfile({ displayName: nome });
+
+    await db.collection('usuarios').doc(uid).set({
+      nome, telefone: fone, email, foto: '',
+      ...(cpf ? { cpfCnpj: cpf } : {}),
+      criadoNoBalcao: true,
+      criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    await appTemp.auth().signOut();
+    fecharNovoCliente();
+
+    // A lista de clientes chega pelo listener, que pode demorar um instante:
+    // seleciona já com o que acabamos de gravar.
+    pdvCliente = { id: uid, nome, email, telefone: fone, cpfCnpj: cpf };
+    const box = document.getElementById('pdv-cli-sel');
+    box.style.display = 'flex';
+    box.innerHTML = `<span>✅ ${nome} <small style="display:block;font-weight:400">${email}</small></span>
+                     <button onclick="pdvLimparCliente()" title="Trocar cliente">✕</button>`;
+    const campoCpf = document.getElementById('pdv-cnpj');
+    if (cpf && campoCpf && !campoCpf.value) { campoCpf.value = cpf; mascaraCpfCnpj(campoCpf); }
+
+    toast(`✅ Conta criada. Senha: ${senha}`);
+    alert(`Cliente cadastrado!\n\nE-mail: ${email}\nSenha provisória: ${senha}\n\nAnote e entregue ao cliente.`);
+    pdvAtualizar();
+  } catch (e) {
+    aviso(traduzErroAuth(e), true);
+  } finally {
+    if (appTemp) { try { await appTemp.delete(); } catch (_) {} }
+    btn.disabled = false; btn.textContent = txt;
+  }
 }
 
 /* ---------- Busca ---------- */
@@ -4689,6 +4961,7 @@ function pdvPagamento(forma) {
   pdvFormaPag = forma;
   document.querySelectorAll('.pdv-pag').forEach(b => b.classList.toggle('active', b.dataset.pag === forma));
   document.getElementById('pdv-dinheiro-box').style.display = (forma === 'Dinheiro') ? '' : 'none';
+  document.getElementById('pdv-boleto-box').style.display = (forma === 'Boleto') ? '' : 'none';
   pdvAtualizar();
 }
 
@@ -4767,10 +5040,106 @@ function pdvAtualizar() {
       : '';
   }
 
+  // As opções de parcelamento acompanham o total da venda
+  const selP = document.getElementById('pdv-parcelas');
+  if (selP) {
+    const escolhido = selP.value || '1';
+    selP.innerHTML = Array.from({ length: 10 }, (_, i) => {
+      const n = i + 1;
+      return `<option value="${n}"${String(n) === escolhido ? ' selected' : ''}>${n === 1 ? 'À vista' : n + 'x'} de ${fmt(total / n)}</option>`;
+    }).join('');
+  }
+  if (pdvFormaPag === 'Boleto') pdvPrevia();
+
   document.getElementById('pdv-finalizar').disabled = (nItens === 0);
   document.getElementById('pdv-finalizar').textContent = nItens ? `Finalizar venda · ${fmt(total)}` : 'Finalizar venda';
   const btnPdf = document.getElementById('pdv-pdf');
   if (btnPdf) btnPdf.disabled = (nItens === 0);
+}
+
+/*
+ * Venda de balcão paga no boleto.
+ *
+ * Aqui quem baixa o estoque e monta as parcelas é o servidor, na rota de
+ * parcelamento — por isso o pedido nasce como "aguardando pagamento" e não
+ * passa pelo batch de estoque das outras formas de pagamento.
+ *
+ * Depois, se tudo tinha estoque, o pedido é marcado como enviado: no balcão a
+ * mercadoria sai na hora, mesmo que o pagamento venha parcelado.
+ */
+async function pdvFinalizarBoleto(codigo, cliente, cpfCnpj, sub, desc, total, btn) {
+  const api = normalizarApi(config.api);
+  const totalFalta = pdvItens.reduce((soma, i) => soma + pdvFaltando(i), 0);
+  const itens = pdvItens.map(i => ({ id: i.id, nome: i.nome, preco: pdvPrecoItem(i), qtd: i.qtd, encomendado: pdvFaltando(i) }));
+
+  const ref = await db.collection('pedidos').add({
+    codigo,
+    canal: 'loja',
+    status: 'aguardando_pagamento',
+    origem: 'asaas',
+    encomenda: totalFalta > 0,
+    unidadesEncomendadas: totalFalta,
+    ...pdvDadosCliente(cpfCnpj),
+    obs: 'Venda presencial no balcão (boleto)' + (totalFalta ? ` — ${totalFalta} un. em encomenda` : ''),
+    itens,
+    subtotal: Math.round(sub * 100) / 100,
+    desconto: Math.round(desc * 100) / 100,
+    total: Math.round(total * 100) / 100,
+    criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  const token = await usuario.getIdToken();
+  const r = await fetch(api + '/api/criar-parcelamento', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      pedidoId: ref.id,
+      parcelas: Number(document.getElementById('pdv-parcelas').value) || 1,
+      primeiroVencimento: document.getElementById('pdv-venc').value,
+      configBoleto: lerConfigBoleto('pdv'),
+      token
+    })
+  });
+  const corpo = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(corpo.erro || 'erro ' + r.status);
+
+  // Sem encomenda, o cliente já levou a mercadoria: não faz sentido deixar o
+  // pedido na fila de separação só porque o pagamento é parcelado.
+  if (!totalFalta) {
+    await ref.update({ status: 'enviado', enviadoEm: firebase.firestore.FieldValue.serverTimestamp() }).catch(() => {});
+  }
+
+  toast(`✅ Venda ${codigo} — ${corpo.emitidos || 0} boleto(s) gerado(s).` +
+        (totalFalta ? ' Ficou em separação (encomenda).' : ''));
+  if (corpo.linkBoleto && confirm('Abrir o boleto da 1ª parcela para entregar ao cliente?')) {
+    window.open(corpo.linkBoleto, '_blank');
+  }
+
+  pdvItens = [];
+  ['pdv-desconto', 'pdv-recebido', 'pdv-cliente', 'pdv-cnpj', 'pdv-busca'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = (id === 'pdv-desconto') ? 0 : '';
+  });
+  pdvModoCliente('avulso');
+  pdvBuscar();
+  pdvAtualizar();
+}
+
+function pdvPrevia() {
+  const n = Number(document.getElementById('pdv-parcelas').value) || 1;
+  const inicio = document.getElementById('pdv-venc').value;
+  const alvo = document.getElementById('pdv-previa');
+  if (!alvo) return;
+  if (!inicio) { alvo.innerHTML = ''; return; }
+  const [ano, mes, dia] = inicio.split('-').map(Number);
+  const datas = Array.from({ length: n }, (_, i) => {
+    const d = new Date(ano, mes - 1 + i, 1);
+    const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(dia, ultimo));
+    return d.toLocaleDateString('pt-BR');
+  });
+  alvo.innerHTML = `<div style="font-size:.76rem; color:var(--text-muted); line-height:1.6">
+    Vencimentos: ${datas.join(' · ')}<br><strong>Todos os boletos são gerados agora.</strong></div>`;
 }
 
 function pdvLimpar() {
@@ -4779,6 +5148,8 @@ function pdvLimpar() {
   document.getElementById('pdv-desconto').value = 0;
   document.getElementById('pdv-recebido').value = '';
   document.getElementById('pdv-cliente').value = '';
+  document.getElementById('pdv-cnpj').value = '';
+  pdvModoCliente('avulso');
   pdvAtualizar();
 }
 
@@ -4792,12 +5163,29 @@ async function pdvFinalizar() {
   const total = sub - desc;
   const cliente = (document.getElementById('pdv-cliente').value || '').trim() || 'Venda na loja';
 
+  // Boleto exige documento: é com ele que a Asaas identifica o pagador
+  const cpfCnpj = (document.getElementById('pdv-cnpj').value || '').replace(/\D/g, '');
+  if (pdvFormaPag === 'Boleto') {
+    if (!cpfCnpj) return toast('⚠️ Informe o CPF/CNPJ do cliente para emitir boleto.');
+    if (!cpfCnpjValido(cpfCnpj)) return toast('⚠️ CPF/CNPJ inválido.');
+    if (!normalizarApi(config.api)) return toast('⚠️ Servidor de pagamento não configurado.');
+    const temNome = (pdvModo === 'cadastrado' && pdvCliente) ||
+                    document.getElementById('pdv-cliente').value.trim() !== '';
+    if (!temNome) return toast('⚠️ Informe o nome do cliente ou selecione um cadastrado.');
+  }
+
   const btn = document.getElementById('pdv-finalizar');
   btn.disabled = true;
   btn.textContent = 'Gravando...';
 
   try {
     const codigo = gerarCodigo();
+
+    if (pdvFormaPag === 'Boleto') {
+      await pdvFinalizarBoleto(codigo, cliente, cpfCnpj, sub, desc, total, btn);
+      return;
+    }
+
     const batch = db.batch();
 
     // Baixa de estoque item a item
@@ -4819,7 +5207,7 @@ async function pdvFinalizar() {
       status: totalFalta ? 'pendente_envio' : 'enviado',
       encomenda: totalFalta > 0,
       unidadesEncomendadas: totalFalta,
-      cliente: { nome: cliente, fone: '', cpfCnpj: '', endereco: 'Retirada na loja' },
+      ...pdvDadosCliente(''),
       obs: 'Venda presencial no balcão' + (totalFalta ? ` — ${totalFalta} un. em encomenda` : ''),
       itens: pdvItens.map(i => ({ id: i.id, nome: i.nome, preco: pdvPrecoItem(i), qtd: i.qtd, encomendado: pdvFaltando(i) })),
       subtotal: Math.round(sub * 100) / 100,
@@ -6870,6 +7258,7 @@ document.getElementById('favicon').href = LOGO_B64;
 
 /* ==================== INIT ==================== */
 iniciarNoite();
+iniciarAlturaTopo();
 iniciarScrollInfinito();
 carregarProdutos();
 carregarConfig();
