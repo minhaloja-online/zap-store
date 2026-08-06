@@ -1697,13 +1697,28 @@
       <div>
         <div class="panel" style="margin-bottom:1rem">
           <h3 style="margin-bottom:.8rem">👤 Cliente</h3>
-          <div class="field" style="margin-bottom:.7rem; position:relative">
-            <label>Buscar cliente cadastrado *</label>
-            <input type="text" id="vend-cli-busca" placeholder="Digite o nome ou e-mail do cliente"
-                   oninput="vendBuscarCliente()" autocomplete="off">
-            <div id="vend-cli-lista" class="vend-sugestoes"></div>
+          <div class="field" style="margin-bottom:.6rem">
+            <div class="pdv-cli-modo">
+              <button class="pdv-pag active" data-vmodo="cadastrado" onclick="vendModoCliente('cadastrado')">Cadastrado</button>
+              <button class="pdv-pag" data-vmodo="avulso" onclick="vendModoCliente('avulso')">Avulso</button>
+            </div>
           </div>
-          <div id="vend-cli-sel" class="vend-cli-sel" style="display:none"></div>
+
+          <div id="vend-cli-box">
+            <div class="field" style="margin-bottom:.6rem; position:relative">
+              <input type="text" id="vend-cli-busca" placeholder="Digite o nome ou e-mail do cliente"
+                     oninput="vendBuscarCliente()" autocomplete="off">
+              <div id="vend-cli-lista" class="vend-sugestoes"></div>
+            </div>
+            <div id="vend-cli-sel" class="vend-cli-sel" style="display:none"></div>
+            <button class="btn-clear" style="width:100%; margin-bottom:.7rem" onclick="abrirNovoCliente('vend')">➕ Cadastrar novo cliente</button>
+          </div>
+
+          <div id="vend-cli-avulso" class="field" style="display:none; margin-bottom:.7rem">
+            <label>Nome do cliente</label>
+            <input type="text" id="vend-cli-nome" placeholder="Nome de quem comprou" oninput="vendAtualizar()">
+            <p style="font-size:.72rem; color:var(--text-muted); margin-top:4px;">Venda sem vínculo — não aparece em "Meus Pedidos" de ninguém.</p>
+          </div>
 
           <div class="field" style="margin-bottom:.7rem">
             <label>CPF / CNPJ do cliente *</label>
@@ -1908,7 +1923,7 @@
             <div id="pdv-cli-lista" class="vend-sugestoes"></div>
           </div>
           <div id="pdv-cli-sel" class="vend-cli-sel" style="display:none"></div>
-          <button class="btn-clear" style="width:100%; margin-bottom:.5rem" onclick="abrirNovoCliente()">➕ Cadastrar novo cliente</button>
+          <button class="btn-clear" style="width:100%; margin-bottom:.5rem" onclick="abrirNovoCliente('pdv')">➕ Cadastrar novo cliente</button>
         </div>
 
         <div id="pdv-encomenda" class="dash-aviso" style="display:none; margin:.9rem 0 .2rem; font-size:.8rem;"></div>
@@ -2036,7 +2051,7 @@
     <div style="padding:1.6rem">
       <h3 style="color:var(--marca-txt); margin-bottom:.3rem">➕ Cadastrar cliente</h3>
       <p style="font-size:.83rem; color:var(--text-muted); margin-bottom:1.1rem">
-        A conta é criada na hora e o cliente já consegue acompanhar os pedidos pelo site.
+        A conta é criada na hora e o cliente passa a acompanhar os pedidos pelo site.
       </p>
 
       <div class="field">
@@ -2056,11 +2071,10 @@
         <label>CPF / CNPJ</label>
         <input type="text" id="nc-cpf" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)">
       </div>
-      <div class="field">
-        <label>Senha provisória *</label>
-        <input type="text" id="nc-senha" value="" placeholder="Mínimo 6 caracteres">
-        <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">Anote e entregue ao cliente. Ele pode trocar depois em "Esqueci minha senha".</p>
-      </div>
+      <p style="font-size:.78rem; color:var(--text-muted); background:var(--surf-2);
+                border-radius:9px; padding:.6rem .75rem; margin-bottom:.9rem; line-height:1.5;">
+        🔑 O cliente define a senha dele. Enviamos um e-mail para ele criar a senha e acessar a conta.
+      </p>
 
       <p id="nc-msg" class="msg" style="display:none"></p>
       <button class="btn-block btn-pdf" onclick="salvarNovoCliente(this)">Criar conta e selecionar</button>
@@ -3266,6 +3280,10 @@ function traduzErroAuth(e) {
   if (c.includes('user-not-found') || c.includes('wrong-password') || c.includes('invalid-credential')) return 'E-mail ou senha incorretos.';
   if (c.includes('popup-closed')) return 'Login cancelado.';
   if (c.includes('too-many-requests')) return 'Muitas tentativas. Aguarde um instante.';
+  // O erro genérico escondia o caso mais comum aqui: regra do Firestore
+  // barrando a gravação. Sem essa mensagem, fica impossível saber o motivo.
+  if (c.includes('permission-denied')) return 'Sem permissão para gravar. Publique as regras do Firestore atualizadas.';
+  if (c.includes('unavailable') || c.includes('network')) return 'Sem conexão com o servidor. Tente de novo.';
   if (c === 'nome-vazio') return 'Digite seu nome completo.';
   if (c === 'fone-vazio') return 'Digite seu telefone.';
   return 'Não foi possível concluir. Tente novamente.';
@@ -4318,6 +4336,31 @@ function vendAbrir() {
 }
 
 /* ---------- Cliente ---------- */
+let vendModo = 'cadastrado';
+
+function vendModoCliente(modo) {
+  vendModo = modo;
+  document.querySelectorAll('[data-vmodo]').forEach(b => b.classList.toggle('active', b.dataset.vmodo === modo));
+  document.getElementById('vend-cli-box').style.display = modo === 'cadastrado' ? '' : 'none';
+  document.getElementById('vend-cli-avulso').style.display = modo === 'avulso' ? '' : 'none';
+  if (modo === 'avulso') vendLimparCliente();
+  vendAtualizar();
+}
+
+// Dados do cliente para gravar no pedido. Cadastrado ganha dono (userId) e
+// aparece em "Meus Pedidos"; avulso fica sem vínculo.
+function vendDadosCliente(cpfCnpj, endereco) {
+  if (vendModo === 'cadastrado' && vendCliente) {
+    return {
+      userId: vendCliente.id,
+      userEmail: vendCliente.email || '',
+      cliente: { nome: vendCliente.nome || 'Cliente', fone: vendCliente.telefone || '', cpfCnpj, endereco }
+    };
+  }
+  const nome = (document.getElementById('vend-cli-nome').value || '').trim() || 'Venda avulsa';
+  return { userId: null, userEmail: '', cliente: { nome, fone: '', cpfCnpj, endereco } };
+}
+
 function vendBuscarCliente() {
   const termo = (document.getElementById('vend-cli-busca').value || '').toLowerCase().trim();
   const cx = document.getElementById('vend-cli-lista');
@@ -4514,11 +4557,11 @@ function vendAtualizar() {
   }
   if (vendFormaPag === 'Boleto') vendPrevia();
 
-  // Sem cliente não dá para fechar: o pedido precisa de dono
-  const pronto = nItens > 0 && !!vendCliente;
+  // No modo cadastrado é preciso escolher alguém; no avulso, não
+  const semCliente = vendModo === 'cadastrado' && !vendCliente;
   const btn = document.getElementById('vend-finalizar');
-  btn.disabled = !pronto;
-  btn.textContent = !vendCliente ? 'Escolha o cliente primeiro'
+  btn.disabled = !(nItens > 0) || semCliente;
+  btn.textContent = semCliente ? 'Escolha o cliente primeiro'
                   : !nItens ? 'Adicione produtos'
                   : `Fechar pedido · ${fmt(total)}`;
 }
@@ -4542,7 +4585,9 @@ function vendPrevia() {
 function vendLimpar() {
   if (vendItens.length && !confirm('Cancelar este pedido e limpar os itens?')) return;
   vendItens = [];
-  vendLimparCliente();
+  vendModoCliente('cadastrado');
+  const nomeAv = document.getElementById('vend-cli-nome');
+  if (nomeAv) nomeAv.value = '';
   document.getElementById('vend-desconto').value = 0;
   document.getElementById('vend-obs').value = '';
   document.getElementById('vend-busca').value = '';
@@ -4554,11 +4599,15 @@ function vendLimpar() {
 
 /* ---------- Fechar o pedido ---------- */
 async function vendFinalizar() {
-  if (!vendItens.length || !vendCliente) return;
+  if (!vendItens.length) return;
+  if (vendModo === 'cadastrado' && !vendCliente) return toast('⚠️ Escolha o cliente ou use "Avulso".');
 
   const cpfCnpj = document.getElementById('vend-cnpj').value.replace(/\D/g, '');
   const noBoleto = vendFormaPag === 'Boleto';
   if (noBoleto && !cpfCnpj) return toast('⚠️ Informe o CPF/CNPJ do cliente para emitir boleto.');
+  if (noBoleto && vendModo === 'avulso' && !(document.getElementById('vend-cli-nome').value || '').trim()) {
+    return toast('⚠️ Informe o nome do cliente para emitir boleto.');
+  }
   if (cpfCnpj && !cpfCnpjValido(cpfCnpj)) return toast('⚠️ CPF/CNPJ inválido.');
 
   const endereco = document.getElementById('vend-endereco').value.trim();
@@ -4580,18 +4629,11 @@ async function vendFinalizar() {
     const base = {
       codigo,
       canal: 'vendedor',
-      // O pedido sai no nome do CLIENTE: é isso que o faz aparecer em
-      // "Meus Pedidos" dele e permite acompanhar o parcelamento.
-      userId: vendCliente.id,
-      userEmail: vendCliente.email || '',
+      // Com cliente cadastrado o pedido sai no nome dele e aparece em
+      // "Meus Pedidos"; avulso fica sem dono.
+      ...vendDadosCliente(cpfCnpj, endereco),
       vendedorId: usuario.uid,
       vendedorNome: perfil?.nome || usuario.email || '',
-      cliente: {
-        nome: vendCliente.nome || 'Cliente',
-        fone: vendCliente.telefone || '',
-        cpfCnpj,
-        endereco
-      },
       obs: document.getElementById('vend-obs').value.trim(),
       itens,
       subtotal: Math.round(sub * 100) / 100,
@@ -4649,7 +4691,9 @@ async function vendFinalizar() {
     }
 
     vendItens = [];
-    vendLimparCliente();
+    vendModoCliente('cadastrado');
+    const nomeAvulso = document.getElementById('vend-cli-nome');
+    if (nomeAvulso) nomeAvulso.value = '';
     document.getElementById('vend-desconto').value = 0;
     document.getElementById('vend-obs').value = '';
     document.getElementById('vend-busca').value = '';
@@ -4776,10 +4820,12 @@ function pdvLimparCliente() {
 }
 
 /* ---------- Cadastro rápido ---------- */
-function abrirNovoCliente() {
+// Guarda de qual tela o cadastro foi aberto, para selecionar no lugar certo
+let origemNovoCliente = 'pdv';
+
+function abrirNovoCliente(origem) {
+  origemNovoCliente = origem || 'pdv';
   ['nc-nome', 'nc-email', 'nc-fone', 'nc-cpf'].forEach(id => document.getElementById(id).value = '');
-  // Senha sugerida: o vendedor anota e entrega. O cliente troca depois.
-  document.getElementById('nc-senha').value = 'zap' + Math.random().toString(36).slice(2, 8);
   document.getElementById('nc-msg').style.display = 'none';
   document.getElementById('modal-novo-cliente').classList.add('open');
 }
@@ -4793,13 +4839,15 @@ async function salvarNovoCliente(btn) {
   const email = document.getElementById('nc-email').value.trim();
   const fone = document.getElementById('nc-fone').value.trim();
   const cpf = document.getElementById('nc-cpf').value.replace(/\D/g, '');
-  const senha = document.getElementById('nc-senha').value;
   const msg = document.getElementById('nc-msg');
+  // O Firebase exige uma senha para criar a conta, mas ninguém precisa
+  // conhecê-la: geramos uma aleatória e o cliente define a dele pelo e-mail
+  // de redefinição. Assim nenhuma senha circula pelo vendedor.
+  const senha = 'Zs' + Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 6).toUpperCase();
   const aviso = (txt, erro) => { msg.style.display = 'block'; msg.className = 'msg ' + (erro ? 'err' : 'ok'); msg.textContent = txt; };
 
   if (!nome) return aviso('Digite o nome do cliente.', true);
   if (!email) return aviso('Digite o e-mail — é com ele que o cliente entra no site.', true);
-  if (senha.length < 6) return aviso('A senha precisa ter ao menos 6 caracteres.', true);
   if (cpf && !cpfCnpjValido(cpf)) return aviso('CPF/CNPJ inválido.', true);
 
   const txt = btn.textContent;
@@ -4814,31 +4862,54 @@ async function salvarNovoCliente(btn) {
     const uid = cred.user.uid;
     await cred.user.updateProfile({ displayName: nome });
 
-    await db.collection('usuarios').doc(uid).set({
-      nome, telefone: fone, email, foto: '',
-      ...(cpf ? { cpfCnpj: cpf } : {}),
-      criadoNoBalcao: true,
-      criadoEm: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    try {
+      await db.collection('usuarios').doc(uid).set({
+        nome, telefone: fone, email, foto: '',
+        ...(cpf ? { cpfCnpj: cpf } : {}),
+        criadoNoBalcao: true,
+        criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch (err) {
+      // A conta de acesso já existe neste ponto. Avisar é melhor que um erro
+      // genérico: numa nova tentativa o e-mail apareceria como "já em uso".
+      throw Object.assign(new Error(err.message), {
+        code: err.code,
+        aviso: 'A conta de acesso foi criada, mas o cadastro não pôde ser salvo. ' +
+               'Corrija a permissão e cadastre o cliente de novo — ele já existirá no login.'
+      });
+    }
 
     await appTemp.auth().signOut();
     fecharNovoCliente();
 
     // A lista de clientes chega pelo listener, que pode demorar um instante:
     // seleciona já com o que acabamos de gravar.
-    pdvCliente = { id: uid, nome, email, telefone: fone, cpfCnpj: cpf };
-    const box = document.getElementById('pdv-cli-sel');
+    const novo = { id: uid, nome, email, telefone: fone, cpfCnpj: cpf };
+    const pref = origemNovoCliente === 'vend' ? 'vend' : 'pdv';
+    if (pref === 'vend') vendCliente = novo; else pdvCliente = novo;
+
+    const box = document.getElementById(pref + '-cli-sel');
     box.style.display = 'flex';
     box.innerHTML = `<span>✅ ${nome} <small style="display:block;font-weight:400">${email}</small></span>
-                     <button onclick="pdvLimparCliente()" title="Trocar cliente">✕</button>`;
-    const campoCpf = document.getElementById('pdv-cnpj');
+                     <button onclick="${pref}LimparCliente()" title="Trocar cliente">✕</button>`;
+
+    const campoCpf = document.getElementById(pref === 'vend' ? 'vend-cnpj' : 'pdv-cnpj');
     if (cpf && campoCpf && !campoCpf.value) { campoCpf.value = cpf; mascaraCpfCnpj(campoCpf); }
 
-    toast(`✅ Conta criada. Senha: ${senha}`);
-    alert(`Cliente cadastrado!\n\nE-mail: ${email}\nSenha provisória: ${senha}\n\nAnote e entregue ao cliente.`);
-    pdvAtualizar();
+    // Convite para o cliente criar a própria senha. Se o envio falhar (e-mail
+    // inexistente, cota do Firebase), a conta continua criada — o cliente pode
+    // pedir "Esqueci minha senha" na tela de login.
+    let enviado = true;
+    try { await auth.sendPasswordResetEmail(email); }
+    catch (err) { enviado = false; console.warn('E-mail de senha não enviado:', err.message); }
+
+    toast('✅ Cliente cadastrado.');
+    alert(enviado
+      ? `Cliente cadastrado!\n\nEnviamos um e-mail para ${email} com o link para ele criar a senha.\n\nSe não chegar, ele pode usar "Esqueci minha senha" na tela de login.`
+      : `Cliente cadastrado!\n\nNão conseguimos enviar o e-mail agora. Peça para ele entrar no site e usar "Esqueci minha senha" com o e-mail ${email}.`);
+    if (pref === 'vend') vendAtualizar(); else pdvAtualizar();
   } catch (e) {
-    aviso(traduzErroAuth(e), true);
+    aviso((e.aviso ? e.aviso + ' ' : '') + traduzErroAuth(e), true);
   } finally {
     if (appTemp) { try { await appTemp.delete(); } catch (_) {} }
     btn.disabled = false; btn.textContent = txt;
