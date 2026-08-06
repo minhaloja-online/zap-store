@@ -682,6 +682,12 @@
                background:var(--card); color:var(--text); font-family:inherit; font-size:.8rem;
                font-weight:700; cursor:pointer; }
 
+  .scroll-status { text-align:center; color:var(--text-muted); font-size:.85rem; padding:1.2rem .5rem; min-height:1px; }
+  .scroll-status .spin { display:inline-block; width:18px; height:18px; border:2.5px solid var(--border);
+                         border-top-color:var(--primary); border-radius:50%; animation:girar .7s linear infinite;
+                         vertical-align:middle; margin-right:8px; }
+  @keyframes girar { to { transform: rotate(360deg); } }
+
   /* Configuração do boleto (multa, juros, desconto) */
   .cfg-boleto { border:1px solid var(--border); border-radius:10px; margin-bottom:.8rem; background:var(--surf-2); }
   .cfg-boleto summary { cursor:pointer; padding:.6rem .8rem; font-size:.83rem; font-weight:700; color:var(--marca-txt); }
@@ -1017,6 +1023,9 @@
 
     <div id="catalog-loader" class="loader"><div class="spinner"></div>Carregando produtos...</div>
     <div class="product-grid" id="product-grid"></div>
+    <!-- Quando esta marca entra na tela, a próxima leva de produtos é desenhada -->
+    <div id="scroll-sentinela" style="height:1px"></div>
+    <div id="scroll-status" class="scroll-status"></div>
     <div id="catalog-empty" class="empty-state" style="display:none">
       <div class="icon">🔎</div>
       <h3>Nenhum produto encontrado</h3>
@@ -2247,10 +2256,77 @@ function renderCatalog() {
   document.getElementById('results-info').textContent =
     lista.length + ' produto' + (lista.length !== 1 ? 's' : '') + ' encontrado' + (lista.length !== 1 ? 's' : '');
 
-  const grid = document.getElementById('product-grid');
   document.getElementById('catalog-empty').style.display = lista.length ? 'none' : 'block';
 
-  grid.innerHTML = lista.map(p => cardProduto(p)).join('');
+  // Guarda o resultado filtrado e desenha só a primeira leva. O resto entra
+  // conforme a pessoa rola — com 172 produtos, montar tudo de uma vez trava a
+  // tela e faz o navegador pedir todas as fotos ao mesmo tempo.
+  catalogoFiltrado = lista;
+  catalogoMostrados = 0;
+  document.getElementById('product-grid').innerHTML = '';
+  mostrarMaisProdutos();
+}
+
+/* ==================== ROLAGEM INFINITA ==================== */
+const LEVA_CATALOGO = 24;      // quantos produtos entram por vez
+let catalogoFiltrado = [];     // resultado atual dos filtros
+let catalogoMostrados = 0;     // quantos já foram desenhados
+let observadorScroll = null;
+
+function mostrarMaisProdutos() {
+  const grid = document.getElementById('product-grid');
+  const status = document.getElementById('scroll-status');
+  if (!grid) return;
+
+  const proximos = catalogoFiltrado.slice(catalogoMostrados, catalogoMostrados + LEVA_CATALOGO);
+  if (proximos.length) {
+    grid.insertAdjacentHTML('beforeend', proximos.map(p => cardProduto(p)).join(''));
+    catalogoMostrados += proximos.length;
+  }
+
+  const acabou = catalogoMostrados >= catalogoFiltrado.length;
+  if (status) {
+    status.innerHTML = !catalogoFiltrado.length ? ''
+      : acabou
+        ? (catalogoFiltrado.length > LEVA_CATALOGO
+            ? `— fim da lista · ${catalogoFiltrado.length} produtos —` : '')
+        : `<span class="spin"></span>Carregando mais ${Math.min(LEVA_CATALOGO, catalogoFiltrado.length - catalogoMostrados)} produtos...`;
+  }
+
+  const sent = document.getElementById('scroll-sentinela');
+  if (sent && observadorScroll) {
+    observadorScroll.unobserve(sent);
+    // Reobservar força uma nova checagem. Sem isso, quando a leva não enche a
+    // tela a marca continua visível, o observador não dispara de novo e a
+    // lista trava — acontece em tela grande ou com filtro de poucos itens.
+    if (!acabou) observadorScroll.observe(sent);
+  }
+}
+
+function iniciarScrollInfinito() {
+  const sent = document.getElementById('scroll-sentinela');
+  if (!sent) return;
+
+  // Navegador antigo sem IntersectionObserver: mostra tudo de uma vez, para
+  // ninguém ficar sem ver o catálogo.
+  if (!('IntersectionObserver' in window)) {
+    const antigo = mostrarMaisProdutos;
+    window.mostrarMaisProdutos = function () {
+      const grid = document.getElementById('product-grid');
+      grid.innerHTML = catalogoFiltrado.map(p => cardProduto(p)).join('');
+      catalogoMostrados = catalogoFiltrado.length;
+    };
+    return;
+  }
+
+  observadorScroll = new IntersectionObserver(entradas => {
+    if (entradas.some(e => e.isIntersecting)) mostrarMaisProdutos();
+  }, {
+    // Começa a carregar antes de a marca aparecer: a próxima leva já está
+    // pronta quando a pessoa chega no fim da anterior.
+    rootMargin: '600px 0px'
+  });
+  observadorScroll.observe(sent);
 }
 
 // Card de produto (usado no catálogo e nos favoritos)
@@ -2261,7 +2337,7 @@ function cardProduto(p) {
   return `
     <div class="product-card">
       <div class="product-img" style="cursor:pointer" onclick="abrirProduto('${p.id}')" title="Ver detalhes">
-        ${capa ? `<img src="${capa}" alt="${p.nome}">` : `<span class="placeholder">📦</span>`}
+        ${capa ? `<img src="${capa}" alt="${p.nome}" loading="lazy" decoding="async">` : `<span class="placeholder">📦</span>`}
         ${p.categoria ? `<span class="cat-tag">${p.categoria}</span>` : ''}
         ${numFotos > 1 ? `<span style="position:absolute; bottom:8px; right:8px; background:rgba(0,0,0,.55); color:#fff; font-size:.68rem; font-weight:700; padding:2px 8px; border-radius:12px;">📷 ${numFotos}</span>` : ''}
       </div>
@@ -6787,6 +6863,7 @@ document.getElementById('favicon').href = LOGO_B64;
 
 /* ==================== INIT ==================== */
 iniciarNoite();
+iniciarScrollInfinito();
 carregarProdutos();
 carregarConfig();
 carregarTema();
