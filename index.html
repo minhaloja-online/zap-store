@@ -263,6 +263,12 @@
     .bottom-nav button.active { color: var(--marca-txt); }
     .bottom-nav .bn-ico { font-size: 1.22rem; }
     .bottom-nav .side-badge { position: absolute; top: 2px; right: 22%; margin: 0; }
+    /* Com Admin e Vendedor visíveis são 6 itens: aperta um pouco para caber
+       sem quebrar linha em tela estreita. */
+    @media (max-width: 420px) {
+      .bottom-nav button { font-size: .6rem; padding: .5rem .1rem .55rem; }
+      .bottom-nav .bn-ico { font-size: 1.1rem; }
+    }
     body { padding-bottom: 62px; }
   }
 
@@ -1884,6 +1890,7 @@
   <button data-tab="meuspedidos" onclick="switchTab('meuspedidos')"><span class="bn-ico">📋</span>Pedidos</button>
   <button data-tab="favoritos" onclick="switchTab('favoritos')"><span class="bn-ico">❤️</span>Favoritos</button>
   <button data-tab="admin" onclick="switchTab('admin')"><span class="bn-ico">🔐</span>Admin</button>
+  <button data-tab="vendedor" id="bn-vendedor" style="display:none" onclick="switchTab('vendedor')"><span class="bn-ico">🧑‍💼</span>Vendedor</button>
 </nav>
 
 <!-- ===== MODAL DE DETALHES DO PRODUTO ===== -->
@@ -3025,8 +3032,8 @@ auth.onAuthStateChanged(async user => {
   if (document.getElementById('cart-layout')?.style.display !== 'none') renderCarrinho();
 
   // Área do Vendedor: administrador e vendedor. Cliente comum nem vê o botão.
-  const btnVend = document.getElementById('side-vendedor');
-  if (btnVend) btnVend.style.display = ehVendedor ? '' : 'none';
+  // Vale para os dois menus: a lateral do computador e a barra do celular.
+  document.querySelectorAll('[data-tab="vendedor"]').forEach(b => b.style.display = ehVendedor ? '' : 'none');
   if (!ehVendedor && document.getElementById('vendedor')?.classList.contains('active')) switchTab('loja');
 
   // Painel Administrador: só administrador. O vendedor externo não vê
