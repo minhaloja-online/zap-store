@@ -625,29 +625,52 @@ app.post('/api/cancelar-pedido', async (req, res) => {
       });
     }
 
-    // Derruba a cobrança na Asaas, se ainda estiver em aberto
-    if (pedido.asaasPaymentId) {
+    // Derruba na Asaas TODA cobrança em aberto deste pedido: a avulsa e cada
+    // parcela do carnê. Sem isso o cliente continuaria recebendo boleto de um
+    // pedido cancelado.
+    const emAberto = st => st === 'PENDING' || st === 'AWAITING_RISK_ANALYSIS' || st === 'OVERDUE';
+    const jaPago = st => st === 'CONFIRMED' || st === 'RECEIVED';
+
+    const cobrancas = [];
+    if (pedido.asaasPaymentId) cobrancas.push({ id: pedido.asaasPaymentId, parcela: null });
+    (pedido.parcelamento?.parcelas || []).forEach(x => {
+      if (x.asaasId) cobrancas.push({ id: x.asaasId, parcela: x.n });
+    });
+
+    let cancelados = 0;
+    const parcelasAtualizadas = [...(pedido.parcelamento?.parcelas || [])];
+
+    for (const c of cobrancas) {
       try {
-        const cobranca = await asaas(`/payments/${pedido.asaasPaymentId}`);
-        if (cobranca.status === 'PENDING' || cobranca.status === 'AWAITING_RISK_ANALYSIS') {
-          await asaas(`/payments/${pedido.asaasPaymentId}`, { method: 'DELETE' });
-          console.log(`Cobrança ${pedido.asaasPaymentId} cancelada (pedido ${pedido.codigo})`);
-        } else if (cobranca.status === 'CONFIRMED' || cobranca.status === 'RECEIVED') {
-          // Pagou entre abrir a tela e clicar em cancelar: não dá para desfazer aqui
-          return res.status(409).json({
-            erro: 'Este pedido já consta como pago. Fale com a loja para resolver.'
-          });
+        const cob = await asaas(`/payments/${c.id}`);
+        if (jaPago(cob.status)) {
+          // Parcela já paga não se apaga. Sem parcelamento, o pedido inteiro
+          // está pago e o cancelamento não pode seguir por aqui.
+          if (c.parcela === null) {
+            return res.status(409).json({ erro: 'Este pedido já consta como pago. Fale com a loja para resolver.' });
+          }
+          continue;
+        }
+        if (emAberto(cob.status)) {
+          await asaas(`/payments/${c.id}`, { method: 'DELETE' });
+          cancelados++;
+          if (c.parcela !== null) {
+            const i = parcelasAtualizadas.findIndex(x => x.n === c.parcela);
+            if (i >= 0) parcelasAtualizadas[i] = { ...parcelasAtualizadas[i], status: 'CANCELADO', canceladoEm: new Date().toISOString() };
+          }
         }
       } catch (e) {
-        // Cobrança inexistente ou já removida: segue e cancela o pedido mesmo assim
-        console.warn('Não foi possível cancelar a cobrança:', e.message);
+        console.warn(`Cobrança ${c.id} não pôde ser cancelada:`, e.message);
       }
     }
+    if (cancelados) console.log(`${cancelados} cobrança(s) cancelada(s) na Asaas — pedido ${pedido.codigo}`);
 
     await refPedido.update({
       status: 'cancelado',
       canceladoEm: admin.firestore.FieldValue.serverTimestamp(),
       canceladoPor: ehAdmin && !ehDono ? 'vendedor' : 'cliente',
+      boletosCancelados: cancelados,
+      ...(pedido.parcelamento ? { 'parcelamento.parcelas': parcelasAtualizadas } : {}),
       atualizadoEm: admin.firestore.FieldValue.serverTimestamp()
     });
 
@@ -682,7 +705,9 @@ app.post('/api/webhook', async (req, res) => {
     if (!payment) return;
 
     const pedidoId = payment.externalReference;
-    const status = payment.status; // PENDING, CONFIRMED, RECEIVED, OVERDUE, REFUNDED...
+    // PAYMENT_DELETED chega com o status anterior no corpo; o evento é quem
+    // diz que a cobrança deixou de existir.
+    const status = (evento === 'PAYMENT_DELETED') ? 'DELETED' : payment.status;
     if (!pedidoId) return;
 
     console.log(`Webhook Asaas: pedido ${pedidoId} — cobrança ${payment.id} — ${evento} (${status})`);
@@ -799,6 +824,12 @@ async function processarParcela(refPedido, payment, status) {
       valorPago: Number(payment.value || 0),
       pagoEm: (status === 'CONFIRMED' || status === 'RECEIVED') ? new Date().toISOString() : null
     };
+
+    // Boleto apagado ou estornado direto no painel da Asaas: o site precisa
+    // saber, senão continuaria oferecendo um link de boleto que não existe.
+    if (status === 'DELETED' || status === 'REFUNDED') {
+      parcelas[idx] = { ...parcelas[idx], status: 'CANCELADO', canceladoEm: new Date().toISOString() };
+    }
 
     const paga = p => p.status === 'CONFIRMED' || p.status === 'RECEIVED';
     const qtdPagas = parcelas.filter(paga).length;
