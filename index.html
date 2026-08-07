@@ -6382,10 +6382,12 @@ function htmlParcelas(pedido, podeGerar) {
         <span class="parc-tag ${sit.cls}">${sit.txt}</span>
         ${link && !parcelaPaga(par) && par.status !== 'CANCELADO'
           ? `<a class="mini-btn mini-edit" href="${link}" target="_blank" rel="noopener">🔗 Boleto</a>` : ''}
-        ${(podeGerar && par.status === 'a_gerar')
-          ? `<button class="mini-btn" style="background:#e8f7ee;color:#1d7a46" onclick="gerarParcela('${pedido.id}', ${par.n}, this)">📄 Gerar boleto</button>` : ''}
+        ${(podeGerar && (par.status === 'a_gerar' || par.status === 'CANCELADO'))
+          ? `<button class="mini-btn" style="background:#e8f7ee;color:#1d7a46" onclick="gerarParcela('${pedido.id}', ${par.n}, this)">📄 ${par.status === 'CANCELADO' ? 'Gerar de novo' : 'Gerar boleto'}</button>` : ''}
         ${(podeGerar && !parcelaPaga(par) && par.status !== 'CANCELADO')
           ? `<button class="mini-btn mini-edit" onclick="quitarParcela('${pedido.id}', ${par.n}, this)">✔ Dar baixa</button>` : ''}
+        ${(podeGerar && !parcelaPaga(par) && par.status !== 'CANCELADO' && par.status !== 'a_gerar')
+          ? `<button class="mini-btn mini-del" onclick="cancelarParcela('${pedido.id}', ${par.n}, this)">🚫 Cancelar boleto</button>` : ''}
         ${par.baixaManual ? `<span class="parc-venc">(${par.formaPagamento || 'baixa manual'})</span>` : ''}
       </div>`;
     }).join('')}
@@ -6470,6 +6472,34 @@ async function confirmarParcelamento(btn) {
   } catch (e) {
     toast('❌ ' + e.message);
   } finally {
+    btn.disabled = false; btn.textContent = txt;
+  }
+}
+
+/*
+ * Cancela o boleto de uma parcela só. Útil quando o boleto saiu com data ou
+ * valor errado: cancela aqui e emite outro em "Gerar de novo". O boleto é
+ * apagado na Asaas para o cliente não pagar um documento descartado.
+ */
+async function cancelarParcela(pedidoId, n, btn) {
+  if (!confirm(`Cancelar o boleto da parcela ${n}?\n\nEle deixa de valer na Asaas. ` +
+               'Você pode emitir outro depois pelo botão "Gerar de novo".')) return;
+  const txt = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳...';
+  try {
+    const api = normalizarApi(config.api);
+    if (!api) throw new Error('Servidor de pagamento não configurado.');
+    const token = await usuario.getIdToken();
+    const r = await fetch(api + '/api/cancelar-parcela', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pedidoId, n, token })
+    });
+    const resp = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(resp.erro || 'erro ' + r.status);
+    toast(`🚫 Boleto da parcela ${n} cancelado.`);
+  } catch (e) {
+    toast('❌ ' + e.message);
     btn.disabled = false; btn.textContent = txt;
   }
 }

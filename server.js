@@ -487,8 +487,11 @@ app.post('/api/gerar-parcela', async (req, res) => {
 
     const idx = (plano.parcelas || []).findIndex(x => x.n === Number(n));
     if (idx < 0) return res.status(404).json({ erro: 'Parcela não encontrada.' });
-    if (plano.parcelas[idx].status !== 'a_gerar') {
-      return res.status(409).json({ erro: 'O boleto desta parcela já foi gerado.' });
+    // "a_gerar" é parcela nunca emitida; "CANCELADO" é reemissão depois de um
+    // boleto cancelado (data errada, valor errado, cliente pediu outro).
+    const situacao = plano.parcelas[idx].status;
+    if (situacao !== 'a_gerar' && situacao !== 'CANCELADO') {
+      return res.status(409).json({ erro: 'Esta parcela já tem boleto ativo.' });
     }
 
     const atualizada = await emitirBoletoParcela(
@@ -506,6 +509,65 @@ app.post('/api/gerar-parcela', async (req, res) => {
   } catch (erro) {
     console.error('Falha ao gerar parcela:', erro);
     res.status(erro.codigo || 500).json({ erro: erro.message || 'Não foi possível gerar o boleto.' });
+  }
+});
+
+/* ---------- Cancelar o boleto de UMA parcela ----------
+ * Serve para corrigir um boleto emitido errado (data, valor) ou desistir de
+ * cobrar aquela parcela. O boleto é apagado na Asaas para o cliente não pagar
+ * algo que a loja já descartou; a parcela fica marcada como cancelada e pode
+ * ser reemitida depois pelo botão "Gerar boleto".
+ */
+app.post('/api/cancelar-parcela', async (req, res) => {
+  try {
+    const { pedidoId, n, token } = req.body;
+    await exigirVendedor(token);
+
+    const refPedido = db.collection('pedidos').doc(pedidoId);
+    const snap = await refPedido.get();
+    if (!snap.exists) return res.status(404).json({ erro: 'Pedido não encontrado.' });
+
+    const pedido = snap.data();
+    const plano = pedido.parcelamento;
+    if (!plano) return res.status(409).json({ erro: 'Este pedido não tem parcelamento.' });
+
+    const idx = (plano.parcelas || []).findIndex(x => x.n === Number(n));
+    if (idx < 0) return res.status(404).json({ erro: 'Parcela não encontrada.' });
+
+    const par = plano.parcelas[idx];
+    if (par.status === 'CONFIRMED' || par.status === 'RECEIVED') {
+      return res.status(409).json({ erro: 'Esta parcela já está paga. Um estorno precisa ser feito pela Asaas.' });
+    }
+    if (par.status === 'CANCELADO') {
+      return res.status(409).json({ erro: 'Esta parcela já está cancelada.' });
+    }
+
+    if (par.asaasId) {
+      try {
+        const cob = await asaas(`/payments/${par.asaasId}`);
+        if (cob.status === 'CONFIRMED' || cob.status === 'RECEIVED') {
+          return res.status(409).json({ erro: 'O cliente acabou de pagar esta parcela. Atualize a tela.' });
+        }
+        await asaas(`/payments/${par.asaasId}`, { method: 'DELETE' });
+      } catch (e) {
+        // Boleto já inexistente na Asaas: segue e marca como cancelada aqui
+        console.warn(`Boleto da parcela ${n} não pôde ser apagado:`, e.message);
+      }
+    }
+
+    const parcelas = [...plano.parcelas];
+    parcelas[idx] = { ...par, status: 'CANCELADO', canceladoEm: new Date().toISOString() };
+
+    await refPedido.update({
+      'parcelamento.parcelas': parcelas,
+      atualizadoEm: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    console.log(`Parcela ${n}/${plano.total} cancelada — pedido ${pedido.codigo}`);
+    res.json({ ok: true });
+  } catch (erro) {
+    console.error('Falha ao cancelar parcela:', erro);
+    res.status(erro.codigo || 500).json({ erro: erro.message || 'Não foi possível cancelar a parcela.' });
   }
 });
 
