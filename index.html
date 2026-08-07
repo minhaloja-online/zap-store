@@ -1688,6 +1688,7 @@
           <button class="btn-clear" onclick="limparFiltrosPedidos()">✕ Limpar</button>
           <button class="btn-clear" style="background:var(--primary); color:#fff; border-color:var(--primary);" onclick="exportarRelatorioPDF()">📄 Relatório PDF</button>
           <button class="btn-clear" style="background:var(--accent); color:#fff; border-color:var(--accent);" onclick="exportarRelatorioExcel()">📊 Relatório Excel</button>
+          <button class="btn-clear" onclick="abrirVendaAntiga()">🕓 Lançar venda anterior</button>
         </div>
         <div class="filtros-ped">
           <button class="admin-tab fped active" data-f="todos" onclick="filtrarPedidos('todos')">Todos</button>
@@ -2071,6 +2072,133 @@
 </div>
 
 <!-- ===== AVISO DE RETORNO DO PAGAMENTO ===== -->
+<!-- ===== Lançar venda anterior (histórico) ===== -->
+<div class="modal-bg" id="modal-venda-antiga" onclick="if(event.target===this) fecharVendaAntiga()">
+  <div class="modal" style="max-width:680px">
+    <button class="modal-close" onclick="fecharVendaAntiga()">×</button>
+    <div style="padding:1.5rem">
+      <h3 style="color:var(--marca-txt); margin-bottom:.3rem">🕓 Lançar venda anterior</h3>
+      <p style="font-size:.82rem; color:var(--text-muted); margin-bottom:1rem">
+        Para registrar vendas feitas antes do site existir. Elas entram no histórico e nos relatórios com a data original.
+      </p>
+
+      <div class="pdv-cli-modo" style="margin-bottom:1rem">
+        <button class="pdv-pag active" data-vaaba="manual" onclick="vaAba('manual')">✍️ Uma por vez</button>
+        <button class="pdv-pag" data-vaaba="planilha" onclick="vaAba('planilha')">📊 Importar planilha</button>
+      </div>
+
+      <div id="va-painel-planilha" style="display:none">
+        <p style="font-size:.82rem; color:var(--text-muted); line-height:1.6; margin-bottom:.9rem">
+          Baixe o modelo, preencha uma linha por item vendido e envie de volta.
+          Itens da mesma venda usam o <strong>mesmo número na coluna "Venda"</strong>.
+        </p>
+        <button class="btn-clear" style="width:100%; margin-bottom:.7rem" onclick="baixarModeloVendas()">
+          ⬇️ Baixar modelo da planilha
+        </button>
+        <div class="field">
+          <label>Planilha preenchida</label>
+          <input type="file" id="va-arquivo" accept=".xlsx,.xls,.csv" onchange="lerPlanilhaVendas(this)">
+        </div>
+
+        <label style="display:flex; gap:.6rem; align-items:flex-start; font-size:.83rem; margin:.4rem 0 .8rem; cursor:pointer">
+          <input type="checkbox" id="va-imp-baixar" style="width:auto; margin-top:3px; flex-shrink:0">
+          <span>Descontar do estoque atual
+            <small style="display:block; color:var(--text-muted); font-weight:400">
+              Normalmente desmarcado: a mercadoria já saiu na época.
+            </small>
+          </span>
+        </label>
+
+        <div id="va-previa" style="max-height:40vh; overflow-y:auto; margin-bottom:.8rem"></div>
+        <p id="va-imp-msg" class="msg" style="display:none"></p>
+        <button class="btn-block btn-pdf" id="va-importar" onclick="importarVendas(this)" disabled>Importar vendas</button>
+        <button class="btn-block btn-ghost" onclick="fecharVendaAntiga()">Fechar</button>
+      </div>
+
+      <div id="va-painel-manual">
+      <div class="pdv-filtros" style="margin-bottom:.8rem">
+        <div class="field" style="margin-bottom:0">
+          <label>Data da venda *</label>
+          <input type="date" id="va-data">
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Forma de pagamento</label>
+          <select id="va-pag">
+            <option>Dinheiro</option><option>Pix</option><option>Débito</option>
+            <option>Crédito</option><option>Boleto</option><option>Outro</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:.6rem">
+        <label>Cliente</label>
+        <div class="pdv-cli-modo">
+          <button class="pdv-pag active" data-vamodo="avulso" onclick="vaModoCliente('avulso')">Avulso</button>
+          <button class="pdv-pag" data-vamodo="cadastrado" onclick="vaModoCliente('cadastrado')">Cadastrado</button>
+        </div>
+      </div>
+      <div id="va-cli-avulso" class="field" style="margin-bottom:.6rem">
+        <input type="text" id="va-cli-nome" placeholder="Nome de quem comprou">
+      </div>
+      <div id="va-cli-box" style="display:none">
+        <div class="field" style="margin-bottom:.5rem; position:relative">
+          <input type="text" id="va-cli-busca" placeholder="Digite o nome ou e-mail do cliente"
+                 oninput="vaBuscarCliente()" autocomplete="off">
+          <div id="va-cli-lista" class="vend-sugestoes"></div>
+        </div>
+        <div id="va-cli-sel" class="vend-cli-sel" style="display:none"></div>
+      </div>
+
+      <div class="cfg-secao">🛒 Itens vendidos</div>
+      <div class="field" style="margin-bottom:.5rem; position:relative">
+        <label>Buscar no catálogo</label>
+        <input type="text" id="va-busca" placeholder="Digite o nome do produto" oninput="vaBuscarProduto()" autocomplete="off">
+        <div id="va-sug" class="vend-sugestoes"></div>
+      </div>
+      <button class="btn-clear" style="width:100%; margin-bottom:.7rem" onclick="vaAdicionarLivre()">
+        ➕ Produto que não está no catálogo
+      </button>
+
+      <div id="va-itens" style="max-height:34vh; overflow-y:auto; margin-bottom:.8rem"></div>
+
+      <div class="pdv-linha"><span>Subtotal</span><strong id="va-subtotal">R$ 0,00</strong></div>
+      <div class="field" style="margin:.6rem 0 .3rem">
+        <label>Desconto (R$)</label>
+        <input type="number" id="va-desconto" min="0" step="0.01" value="0" oninput="vaAtualizar()">
+      </div>
+      <div class="pdv-linha total"><span>Total</span><strong id="va-total">R$ 0,00</strong></div>
+
+      <div class="field" style="margin-top:.9rem">
+        <label>Situação do pedido</label>
+        <select id="va-status">
+          <option value="enviado">✅ Enviado / entregue</option>
+          <option value="pendente_envio">📦 Pendente de envio</option>
+          <option value="cancelado">❌ Cancelado</option>
+        </select>
+      </div>
+
+      <label style="display:flex; gap:.6rem; align-items:flex-start; font-size:.83rem; margin:.7rem 0 .3rem; cursor:pointer">
+        <input type="checkbox" id="va-baixar" style="width:auto; margin-top:3px; flex-shrink:0">
+        <span>Descontar do estoque atual
+          <small style="display:block; color:var(--text-muted); font-weight:400">
+            Deixe desmarcado se a mercadoria já saiu na época — senão o estoque de hoje ficaria errado.
+          </small>
+        </span>
+      </label>
+
+      <div class="field" style="margin-top:.5rem">
+        <label>Observações</label>
+        <input type="text" id="va-obs" placeholder="Ex: venda registrada no caderno">
+      </div>
+
+      <p id="va-msg" class="msg" style="display:none"></p>
+      <button class="btn-block btn-pdf" id="va-salvar" onclick="salvarVendaAntiga(this)" disabled>Lançar venda</button>
+      <button class="btn-block btn-ghost" onclick="fecharVendaAntiga()">Fechar</button>
+      </div><!-- /va-painel-manual -->
+    </div>
+  </div>
+</div>
+
 <!-- ===== Entrada de mercadoria / Inventário ===== -->
 <div class="modal-bg" id="modal-lote" onclick="if(event.target===this) fecharAjusteLote()">
   <div class="modal" style="max-width:640px">
@@ -3302,7 +3430,8 @@ function toggleUserMenu(ev) {
 }
 document.addEventListener('click', e => {
   [['vend-cli-lista', 'vend-cli-busca'], ['pdv-cli-lista', 'pdv-cli-busca'],
-   ['lote-sug', 'lote-busca']].forEach(([lista, campo]) => {
+   ['lote-sug', 'lote-busca'], ['va-sug', 'va-busca'],
+   ['va-cli-lista', 'va-cli-busca']].forEach(([lista, campo]) => {
     const cx = document.getElementById(lista);
     if (cx && !e.target.closest('#' + campo) && !e.target.closest('#' + lista)) cx.classList.remove('open');
   });
@@ -4395,6 +4524,523 @@ async function alternarAtivo(id) {
   }
 }
 
+
+
+/* ==================== LANÇAR VENDA ANTERIOR ====================
+ * Registra vendas feitas antes do site existir, para o histórico e os
+ * relatórios ficarem completos.
+ *
+ * Três coisas diferem de uma venda normal e por isso esta tela existe:
+ *  1. a data é a original, não a de hoje — senão tudo cairia no mês atual;
+ *  2. o estoque NÃO é debitado por padrão, porque a mercadoria já saiu na
+ *     época e o estoque de hoje já reflete isso;
+ *  3. dá para lançar produto que não está mais no catálogo, digitando nome e
+ *     preço na mão.
+ */
+let vaItens = [];         // [{id|null, nome, preco, qtd}]
+let vaModo = 'avulso';
+let vaCliente = null;
+
+function abrirVendaAntiga() {
+  vaItens = []; vaCliente = null;
+  ['va-cli-nome', 'va-busca', 'va-obs', 'va-cli-busca'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('va-desconto').value = 0;
+  document.getElementById('va-status').value = 'enviado';
+  document.getElementById('va-baixar').checked = false;
+  document.getElementById('va-msg').style.display = 'none';
+  // Data padrão: ontem. Evita lançar sem querer com a data de hoje.
+  document.getElementById('va-data').value = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  vaModoCliente('avulso');
+  vaAba('manual');
+  vaImportadas = [];
+  const arq = document.getElementById('va-arquivo');
+  if (arq) arq.value = '';
+  document.getElementById('va-previa').innerHTML = '';
+  document.getElementById('va-imp-msg').style.display = 'none';
+  document.getElementById('va-importar').disabled = true;
+  vaAtualizar();
+  document.getElementById('modal-venda-antiga').classList.add('open');
+}
+
+function fecharVendaAntiga() {
+  if (vaItens.length && !confirm('Fechar sem lançar? Os itens digitados serão perdidos.')) return;
+  document.getElementById('modal-venda-antiga').classList.remove('open');
+}
+
+/* ---------- Cliente ---------- */
+function vaModoCliente(modo) {
+  vaModo = modo;
+  document.querySelectorAll('[data-vamodo]').forEach(b => b.classList.toggle('active', b.dataset.vamodo === modo));
+  document.getElementById('va-cli-avulso').style.display = modo === 'avulso' ? '' : 'none';
+  document.getElementById('va-cli-box').style.display = modo === 'cadastrado' ? '' : 'none';
+  if (modo === 'avulso') { vaCliente = null; document.getElementById('va-cli-sel').style.display = 'none'; }
+  vaAtualizar();
+}
+
+function vaBuscarCliente() {
+  const termo = (document.getElementById('va-cli-busca').value || '').toLowerCase().trim();
+  const cx = document.getElementById('va-cli-lista');
+  if (termo.length < 2) { cx.classList.remove('open'); return; }
+  const achados = clientes.filter(c =>
+    (c.nome || '').toLowerCase().includes(termo) || (c.email || '').toLowerCase().includes(termo)
+  ).slice(0, 8);
+  cx.innerHTML = achados.length
+    ? achados.map(c => `<div class="vend-sug" onclick="vaEscolherCliente('${c.id}')">
+        <strong>${c.nome || 'Sem nome'}</strong><small>${c.email || ''}</small></div>`).join('')
+    : '<div class="vend-sug" style="color:var(--text-muted)">Nenhum cliente com esse nome.</div>';
+  cx.classList.add('open');
+}
+
+function vaEscolherCliente(uid) {
+  const c = clientes.find(x => x.id === uid);
+  if (!c) return;
+  vaCliente = c;
+  document.getElementById('va-cli-lista').classList.remove('open');
+  document.getElementById('va-cli-busca').value = '';
+  const box = document.getElementById('va-cli-sel');
+  box.style.display = 'flex';
+  box.innerHTML = `<span>✅ ${c.nome || 'Cliente'} <small style="display:block;font-weight:400">${c.email || ''}</small></span>
+                   <button onclick="vaLimparCliente()" title="Trocar">✕</button>`;
+  vaAtualizar();
+}
+
+function vaLimparCliente() {
+  vaCliente = null;
+  document.getElementById('va-cli-sel').style.display = 'none';
+  vaAtualizar();
+}
+
+/* ---------- Itens ---------- */
+function vaBuscarProduto() {
+  const termo = (document.getElementById('va-busca').value || '').toLowerCase().trim();
+  const cx = document.getElementById('va-sug');
+  if (termo.length < 2) { cx.classList.remove('open'); return; }
+  const achados = produtos
+    .filter(p => (p.nome || '').toLowerCase().includes(termo))
+    .sort((a, b) => a.nome.localeCompare(b.nome)).slice(0, 8);
+  cx.innerHTML = achados.length
+    ? achados.map(p => `<div class="vend-sug" onclick="vaAdicionarProduto('${p.id}')">
+        <strong>${p.nome}</strong><small>${p.categoria || '—'} · ${fmt(p.preco)}</small></div>`).join('')
+    : '<div class="vend-sug" style="color:var(--text-muted)">Não achou? Use "Produto que não está no catálogo".</div>';
+  cx.classList.add('open');
+}
+
+function vaAdicionarProduto(id) {
+  const p = produtos.find(x => x.id === id);
+  if (!p) return;
+  vaItens.push({ id, nome: p.nome, preco: Number(p.preco) || 0, qtd: 1 });
+  document.getElementById('va-busca').value = '';
+  document.getElementById('va-sug').classList.remove('open');
+  vaAtualizar();
+}
+
+// Produto que a loja não vende mais: entra só com nome e preço digitados
+function vaAdicionarLivre() {
+  const nome = prompt('Nome do produto vendido:');
+  if (!nome || !nome.trim()) return;
+  const preco = parseFloat((prompt('Preço unitário (R$):', '0') || '0').replace(',', '.'));
+  vaItens.push({ id: null, nome: nome.trim(), preco: Number(preco) || 0, qtd: 1 });
+  vaAtualizar();
+}
+
+function vaCampo(idx, campo, valor) {
+  const it = vaItens[idx];
+  if (!it) return;
+  if (campo === 'qtd') it.qtd = Math.max(1, Math.trunc(Number(valor) || 1));
+  else it.preco = Math.max(0, Number(String(valor).replace(',', '.')) || 0);
+  vaAtualizar();
+}
+
+function vaRemover(idx) { vaItens.splice(idx, 1); vaAtualizar(); }
+
+function vaAtualizar() {
+  const alvo = document.getElementById('va-itens');
+  if (!vaItens.length) {
+    alvo.innerHTML = '<div class="pdv-vazio">Nenhum item. Busque no catálogo ou adicione um produto avulso.</div>';
+  } else {
+    alvo.innerHTML = vaItens.map((i, idx) => `
+      <div class="lote-linha">
+        <span class="lote-nome">${i.nome}${i.id ? '' : '<small>fora do catálogo</small>'}</span>
+        <input type="number" class="lote-qtd" style="width:60px" min="1" value="${i.qtd}"
+               onfocus="this.select()" onchange="vaCampo(${idx},'qtd',this.value)" title="Quantidade">
+        <input type="number" class="lote-qtd" style="width:88px" min="0" step="0.01" value="${i.preco}"
+               onfocus="this.select()" onchange="vaCampo(${idx},'preco',this.value)" title="Preço unitário">
+        <span class="lote-res">${fmt(i.preco * i.qtd)}</span>
+        <button class="btn-remove" onclick="vaRemover(${idx})" title="Remover">🗑</button>
+      </div>`).join('');
+  }
+
+  const sub = vaItens.reduce((s, i) => s + i.preco * i.qtd, 0);
+  let desc = parseFloat(document.getElementById('va-desconto').value) || 0;
+  if (desc < 0) desc = 0;
+  if (desc > sub) desc = sub;
+
+  document.getElementById('va-subtotal').textContent = fmt(sub);
+  document.getElementById('va-total').textContent = fmt(sub - desc);
+
+  const btn = document.getElementById('va-salvar');
+  const semCliente = vaModo === 'cadastrado' && !vaCliente;
+  btn.disabled = !vaItens.length || semCliente;
+  btn.textContent = semCliente ? 'Escolha o cliente'
+                  : !vaItens.length ? 'Adicione os itens'
+                  : `Lançar venda · ${fmt(sub - desc)}`;
+}
+
+/* ---------- Gravar ---------- */
+async function salvarVendaAntiga(btn) {
+  const msg = document.getElementById('va-msg');
+  const aviso = (t, erro) => { msg.style.display = 'block'; msg.className = 'msg ' + (erro ? 'err' : 'ok'); msg.textContent = t; };
+
+  const dataStr = document.getElementById('va-data').value;
+  if (!dataStr) return aviso('Escolha a data da venda.', true);
+
+  // Meio-dia evita que o fuso jogue a venda para o dia anterior nos relatórios
+  const data = new Date(dataStr + 'T12:00:00');
+  if (isNaN(data.getTime())) return aviso('Data inválida.', true);
+  if (data > new Date()) return aviso('A data não pode ser no futuro. Para venda de hoje, use a Área do Vendedor.', true);
+
+  const nomeAvulso = (document.getElementById('va-cli-nome').value || '').trim();
+  if (vaModo === 'avulso' && !nomeAvulso) return aviso('Digite o nome do cliente.', true);
+
+  const sub = vaItens.reduce((s, i) => s + i.preco * i.qtd, 0);
+  let desc = parseFloat(document.getElementById('va-desconto').value) || 0;
+  if (desc < 0) desc = 0;
+  if (desc > sub) desc = sub;
+  const total = sub - desc;
+
+  const baixarEstoque = document.getElementById('va-baixar').checked;
+  const status = document.getElementById('va-status').value;
+  const txt = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ Lançando...';
+
+  try {
+    const codigo = gerarCodigo();
+    const carimbo = firebase.firestore.Timestamp.fromDate(data);
+    const batch = db.batch();
+
+    if (baixarEstoque) {
+      for (const i of vaItens) {
+        if (!i.id) continue;
+        const prod = produtos.find(p => p.id === i.id);
+        if (!prod) continue;
+        batch.update(db.collection('produtos').doc(i.id),
+          { estoque: Math.max((Number(prod.estoque) || 0) - i.qtd, 0) });
+      }
+    }
+
+    batch.set(db.collection('pedidos').doc(), {
+      codigo,
+      canal: 'historico',
+      status,
+      lancamentoManual: true,
+      lancadoPor: usuario ? usuario.uid : null,
+      lancadoPorNome: (perfil?.nome) || (usuario?.email) || '',
+      lancadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+      userId: (vaModo === 'cadastrado' && vaCliente) ? vaCliente.id : null,
+      userEmail: (vaModo === 'cadastrado' && vaCliente) ? (vaCliente.email || '') : '',
+      cliente: {
+        nome: (vaModo === 'cadastrado' && vaCliente) ? (vaCliente.nome || 'Cliente') : nomeAvulso,
+        fone: (vaModo === 'cadastrado' && vaCliente) ? (vaCliente.telefone || '') : '',
+        cpfCnpj: (vaModo === 'cadastrado' && vaCliente) ? (vaCliente.cpfCnpj || '') : '',
+        endereco: 'Venda anterior ao site'
+      },
+      obs: (document.getElementById('va-obs').value || '').trim() || 'Venda lançada manualmente',
+      itens: vaItens.map(i => ({ id: i.id, nome: i.nome, preco: i.preco, qtd: i.qtd })),
+      subtotal: Math.round(sub * 100) / 100,
+      desconto: Math.round(desc * 100) / 100,
+      total: Math.round(total * 100) / 100,
+      pagamento: { metodo: document.getElementById('va-pag').value, status: 'RECEIVED', valor: Math.round(total * 100) / 100 },
+      estoqueBaixado: baixarEstoque,
+      // As três datas recebem o carimbo antigo: é o que faz a venda aparecer
+      // no período certo do Dashboard e dos relatórios.
+      criadoEm: carimbo,
+      pagoEm: status === 'cancelado' ? null : carimbo,
+      aprovadoEm: status === 'cancelado' ? null : carimbo
+    });
+
+    await batch.commit();
+
+    aviso(`Venda ${codigo} lançada em ${data.toLocaleDateString('pt-BR')}.`, false);
+    toast(`🕓 Venda ${codigo} lançada no histórico.`);
+
+    // Mantém a data e o cliente para agilizar vários lançamentos seguidos
+    vaItens = [];
+    document.getElementById('va-desconto').value = 0;
+    document.getElementById('va-obs').value = '';
+    vaAtualizar();
+  } catch (e) {
+    console.error(e);
+    aviso('Erro: ' + e.message, true);
+  }
+  btn.disabled = false; btn.textContent = txt;
+  vaAtualizar();
+}
+
+
+/* ---------- Importar vendas antigas por planilha ----------
+ * Uma linha por ITEM vendido. Itens da mesma venda compartilham o número da
+ * coluna "Venda" — é assim que um pedido com 3 produtos vira um pedido só,
+ * e não três.
+ */
+let vaImportadas = [];   // vendas prontas para gravar, depois da conferência
+
+function vaAba(aba) {
+  document.querySelectorAll('[data-vaaba]').forEach(b => b.classList.toggle('active', b.dataset.vaaba === aba));
+  document.getElementById('va-painel-manual').style.display = aba === 'manual' ? '' : 'none';
+  document.getElementById('va-painel-planilha').style.display = aba === 'planilha' ? '' : 'none';
+}
+
+function baixarModeloVendas() {
+  const hoje = new Date(Date.now() - 30 * 864e5).toLocaleDateString('pt-BR');
+  const linhas = [
+    ['Venda', 'Data', 'Cliente', 'Pagamento', 'Produto', 'Qtd', 'Preço unitário', 'Desconto', 'Observações'],
+    [1, hoje, 'Maria Silva', 'Dinheiro', 'Garrafa Térmica Stanley 500 ml', 2, 49.9, 0, 'venda do caderno'],
+    [1, hoje, 'Maria Silva', 'Dinheiro', 'Copo Garrafa Stanley 900ml', 1, 59.9, '', ''],
+    [2, hoje, 'João Souza', 'Pix', 'Cabo 4 em 1 65W 1,2M', 3, 41.4, 5, '']
+  ];
+  const ajuda = [
+    ['COMO PREENCHER'],
+    [],
+    ['Venda', 'Número que agrupa os itens. Itens da MESMA venda usam o MESMO número.'],
+    ['Data', 'Data em que a venda aconteceu. Formato dd/mm/aaaa.'],
+    ['Cliente', 'Nome de quem comprou. Se ficar vazio, entra como "Cliente não informado".'],
+    ['Pagamento', 'Dinheiro, Pix, Débito, Crédito, Boleto ou Outro.'],
+    ['Produto', 'Nome do produto. Se existir no catálogo, é vinculado automaticamente.'],
+    ['Qtd', 'Quantidade vendida. Número inteiro maior que zero.'],
+    ['Preço unitário', 'Preço praticado NA ÉPOCA, por unidade.'],
+    ['Desconto', 'Desconto em reais da venda inteira. Preencha só na primeira linha da venda.'],
+    ['Observações', 'Opcional. Também só na primeira linha da venda.'],
+    [],
+    ['Não mude os nomes das colunas nem apague a primeira linha.']
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(linhas);
+  ws['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 24 }, { wch: 12 }, { wch: 42 }, { wch: 7 }, { wch: 14 }, { wch: 10 }, { wch: 26 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Vendas');
+  const wa = XLSX.utils.aoa_to_sheet(ajuda);
+  wa['!cols'] = [{ wch: 16 }, { wch: 74 }];
+  XLSX.utils.book_append_sheet(wb, wa, 'Instruções');
+  XLSX.writeFile(wb, 'modelo-vendas-anteriores.xlsx');
+  toast('⬇️ Modelo baixado. Preencha e envie de volta.');
+}
+
+// Aceita 05/08/2026, 2026-08-05 e a data serial do Excel
+function vaLerData(v) {
+  if (v == null || v === '') return null;
+  if (v instanceof Date && !isNaN(v)) return v;
+  if (typeof v === 'number') {
+    // Excel conta dias desde 30/12/1899
+    const d = new Date(Math.round((v - 25569) * 864e5));
+    return isNaN(d) ? null : new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12);
+  }
+  const t = String(v).trim();
+  let m = t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m) {
+    const ano = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+    const d = new Date(ano, Number(m[2]) - 1, Number(m[1]), 12);
+    return isNaN(d) ? null : d;
+  }
+  m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
+  return null;
+}
+
+const vaNum = v => {
+  if (typeof v === 'number') return v;
+  const n = Number(String(v ?? '').replace(/\s|R\$/gi, '').replace(/\./g, '').replace(',', '.'));
+  return isFinite(n) ? n : 0;
+};
+
+async function lerPlanilhaVendas(input) {
+  const f = input.files[0];
+  if (!f) return;
+  const msg = document.getElementById('va-imp-msg');
+  msg.style.display = 'none';
+  vaImportadas = [];
+
+  try {
+    const buf = await f.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const linhas = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    if (!linhas.length) throw new Error('A planilha está vazia.');
+
+    // Aceita variações de acento e maiúsculas nos cabeçalhos
+    const chave = (obj, ...nomes) => {
+      const norm = t => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      for (const k of Object.keys(obj)) {
+        if (nomes.some(n => norm(k) === norm(n))) return obj[k];
+      }
+      return '';
+    };
+
+    const grupos = new Map();
+    const erros = [];
+    const agora = new Date();
+
+    linhas.forEach((l, i) => {
+      const nLinha = i + 2; // +2: cabeçalho e índice base 1
+      const produto = String(chave(l, 'Produto') || '').trim();
+      if (!produto) return;  // linha em branco no meio da planilha
+
+      const data = vaLerData(chave(l, 'Data'));
+      const qtd = Math.trunc(vaNum(chave(l, 'Qtd', 'Quantidade')));
+      const preco = vaNum(chave(l, 'Preço unitário', 'Preco unitario', 'Preço', 'Preco'));
+
+      if (!data) { erros.push(`Linha ${nLinha}: data inválida.`); return; }
+      if (data > agora) { erros.push(`Linha ${nLinha}: data no futuro.`); return; }
+      if (qtd < 1) { erros.push(`Linha ${nLinha}: quantidade precisa ser 1 ou mais.`); return; }
+      if (preco < 0) { erros.push(`Linha ${nLinha}: preço negativo.`); return; }
+
+      // Sem número de venda, cada linha vira uma venda separada
+      const ref = String(chave(l, 'Venda') || '').trim() || ('linha-' + nLinha);
+      const id = ref + '|' + data.toISOString().slice(0, 10);
+
+      if (!grupos.has(id)) {
+        grupos.set(id, {
+          ref, data,
+          cliente: String(chave(l, 'Cliente') || '').trim() || 'Cliente não informado',
+          pagamento: String(chave(l, 'Pagamento') || '').trim() || 'Outro',
+          desconto: vaNum(chave(l, 'Desconto')),
+          obs: String(chave(l, 'Observações', 'Observacoes', 'Obs') || '').trim(),
+          itens: []
+        });
+      }
+      // Casa pelo nome com o catálogo, para o produto ficar vinculado
+      const cat = produtos.find(pp => (pp.nome || '').trim().toLowerCase() === produto.toLowerCase());
+      grupos.get(id).itens.push({ id: cat ? cat.id : null, nome: cat ? cat.nome : produto, preco, qtd });
+    });
+
+    vaImportadas = [...grupos.values()].filter(v => v.itens.length);
+    vaImportadas.forEach(v => {
+      v.subtotal = v.itens.reduce((s, i) => s + i.preco * i.qtd, 0);
+      if (v.desconto > v.subtotal) v.desconto = v.subtotal;
+      v.total = v.subtotal - v.desconto;
+    });
+    vaImportadas.sort((a, b) => a.data - b.data);
+
+    mostrarPreviaVendas(erros);
+  } catch (e) {
+    msg.style.display = 'block'; msg.className = 'msg err';
+    msg.textContent = 'Não consegui ler a planilha: ' + e.message;
+    document.getElementById('va-importar').disabled = true;
+  }
+}
+
+function mostrarPreviaVendas(erros) {
+  const alvo = document.getElementById('va-previa');
+  const btn = document.getElementById('va-importar');
+
+  if (!vaImportadas.length) {
+    alvo.innerHTML = `<div class="pdv-vazio">Nenhuma venda válida encontrada.</div>` +
+      (erros.length ? `<div class="dash-aviso" style="margin-top:.6rem"><span>⚠️</span><div>${erros.slice(0, 12).join('<br>')}</div></div>` : '');
+    btn.disabled = true;
+    return;
+  }
+
+  const totalGeral = vaImportadas.reduce((s, v) => s + v.total, 0);
+  const nItens = vaImportadas.reduce((s, v) => s + v.itens.length, 0);
+  const semCatalogo = vaImportadas.reduce((s, v) => s + v.itens.filter(i => !i.id).length, 0);
+
+  alvo.innerHTML = `
+    <div class="parc-cab" style="border-radius:10px 10px 0 0">
+      <span>📋 ${vaImportadas.length} venda(s) · ${nItens} item(ns)</span>
+      <span>Total ${fmt(totalGeral)}</span>
+    </div>
+    ${erros.length ? `<div class="dash-aviso" style="margin:.5rem 0"><span>⚠️</span><div>
+        <strong>${erros.length} linha(s) serão ignoradas:</strong><br>${erros.slice(0, 8).join('<br>')}
+        ${erros.length > 8 ? `<br>… e mais ${erros.length - 8}.` : ''}</div></div>` : ''}
+    ${semCatalogo ? `<div class="dash-aviso" style="margin:.5rem 0"><span>💡</span><div>
+        ${semCatalogo} item(ns) não têm produto igual no catálogo. Serão lançados
+        pelo nome digitado — o valor entra no faturamento, mas não conta no ranking de produtos.</div></div>` : ''}
+    ${vaImportadas.map(v => `
+      <div class="lote-linha" style="align-items:flex-start">
+        <span class="lote-nome">
+          <strong>${v.data.toLocaleDateString('pt-BR')}</strong> · ${v.cliente}
+          <small>${v.itens.map(i => `${i.qtd}x ${i.nome}${i.id ? '' : ' (fora do catálogo)'}`).join(' · ')}
+          ${v.desconto ? ` · desconto ${fmt(v.desconto)}` : ''} · ${v.pagamento}</small>
+        </span>
+        <span class="lote-res" style="width:88px">${fmt(v.total)}</span>
+      </div>`).join('')}`;
+
+  btn.disabled = false;
+  btn.textContent = `Importar ${vaImportadas.length} venda(s)`;
+}
+
+async function importarVendas(btn) {
+  if (!vaImportadas.length) return;
+  const msg = document.getElementById('va-imp-msg');
+  const baixar = document.getElementById('va-imp-baixar').checked;
+
+  if (!confirm(`Importar ${vaImportadas.length} venda(s) para o histórico?` +
+               (baixar ? '\n\nO estoque atual será descontado.' : ''))) return;
+
+  const txt = btn.textContent;
+  btn.disabled = true;
+
+  try {
+    let feitas = 0;
+    // O Firestore aceita no máximo 500 operações por lote: divide em blocos
+    // para não estourar em importações grandes.
+    const BLOCO = 100;
+    for (let ini = 0; ini < vaImportadas.length; ini += BLOCO) {
+      const fatia = vaImportadas.slice(ini, ini + BLOCO);
+      const batch = db.batch();
+
+      for (const v of fatia) {
+        const carimbo = firebase.firestore.Timestamp.fromDate(v.data);
+        if (baixar) {
+          for (const i of v.itens) {
+            if (!i.id) continue;
+            const prod = produtos.find(p => p.id === i.id);
+            if (!prod) continue;
+            batch.update(db.collection('produtos').doc(i.id),
+              { estoque: Math.max((Number(prod.estoque) || 0) - i.qtd, 0) });
+          }
+        }
+        batch.set(db.collection('pedidos').doc(), {
+          codigo: gerarCodigo(),
+          canal: 'historico',
+          status: 'enviado',
+          lancamentoManual: true,
+          importado: true,
+          lancadoPor: usuario ? usuario.uid : null,
+          lancadoPorNome: (perfil?.nome) || (usuario?.email) || '',
+          lancadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+          userId: null,
+          userEmail: '',
+          cliente: { nome: v.cliente, fone: '', cpfCnpj: '', endereco: 'Venda anterior ao site' },
+          obs: v.obs || 'Venda importada de planilha',
+          itens: v.itens.map(i => ({ id: i.id, nome: i.nome, preco: i.preco, qtd: i.qtd })),
+          subtotal: Math.round(v.subtotal * 100) / 100,
+          desconto: Math.round(v.desconto * 100) / 100,
+          total: Math.round(v.total * 100) / 100,
+          pagamento: { metodo: v.pagamento, status: 'RECEIVED', valor: Math.round(v.total * 100) / 100 },
+          estoqueBaixado: baixar,
+          criadoEm: carimbo, pagoEm: carimbo, aprovadoEm: carimbo
+        });
+        feitas++;
+      }
+      await batch.commit();
+      btn.textContent = `⏳ ${feitas} de ${vaImportadas.length}...`;
+    }
+
+    vaImportadas = [];
+    document.getElementById('va-arquivo').value = '';
+    document.getElementById('va-previa').innerHTML = '';
+    msg.style.display = 'block'; msg.className = 'msg ok';
+    msg.textContent = `${feitas} venda(s) importada(s) para o histórico.`;
+    toast(`🕓 ${feitas} venda(s) importada(s).`);
+  } catch (e) {
+    console.error(e);
+    msg.style.display = 'block'; msg.className = 'msg err';
+    msg.textContent = 'Erro na importação: ' + e.message;
+  }
+  btn.disabled = vaImportadas.length === 0;
+  btn.textContent = txt;
+}
 
 /* ==================== ATUALIZAÇÃO DE ESTOQUE ====================
  * Dois caminhos, para as duas situações do dia a dia:
@@ -6169,6 +6815,7 @@ function renderDashboard() {
     // De onde vem a venda: balcão, vendedor externo ou o próprio site
     const canal = p.canal === 'loja' ? '🏪 Venda na loja'
                 : p.canal === 'vendedor' ? '🧑‍💼 Vendedor externo'
+                : p.canal === 'historico' ? '🕓 Antes do site'
                 : '🌐 Pelo site';
     porCanal[canal] = (porCanal[canal] || 0) + (Number(p.total) || 0);
     const cli = (p.cliente?.nome || '').trim();
@@ -6869,6 +7516,7 @@ function renderPedidos() {
           <span class="status-badge st-${p.status}">${STATUS_LABEL[p.status] || p.status}</span>
           ${p.canal === 'loja' ? '<span class="pill ok">🏪 Venda na loja</span>' : ''}
           ${p.canal === 'vendedor' ? `<span class="pill warn">🧑‍💼 ${p.vendedorNome || 'Vendedor'}</span>` : ''}
+          ${p.canal === 'historico' ? '<span class="pill warn">🕓 Lançamento manual</span>' : ''}
           ${temParcelasAbertas(p) ? `<span class="parc-tag pt-prazo">📄 ${fmt(saldoParcelamento(p.parcelamento))} a receber</span>` : ''}
         </div>
         <span style="font-size:.8rem; color:var(--text-muted)">${data}</span>
