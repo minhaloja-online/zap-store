@@ -23,6 +23,9 @@
   } catch (_) {}
 })();
 </script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
 <style>
   :root {
     --primary: #0d2b6b;
@@ -705,6 +708,222 @@
               border-radius:7px; background:var(--card); color:var(--text); font-family:inherit; }
   .lote-res { width:74px; text-align:center; font-weight:800; font-size:.82rem; }
 
+  /* ==================================================================
+     PÁGINA INÍCIO — a vitrine
+     Tese: o que essa loja tem de próprio é a regra do atacado. Junte 3
+     itens QUAISQUER e o carrinho inteiro vira preço de atacado. Em vez
+     de anunciar isso numa frase, o herói deixa a pessoa acionar a regra
+     e ver os preços virarem. O resto da página fica quieto em volta.
+     ================================================================== */
+  #inicio {
+    --ink:      #050A18;
+    --navy:     #0d2b6b;
+    --electric: #2e9bff;
+    --glow:     #7DE3FF;
+    --gold:     #FFB020;
+    --disp: 'Bricolage Grotesque', 'Segoe UI', sans-serif;
+    --ui: 'Inter', 'Segoe UI', sans-serif;
+    font-family: var(--ui);
+  }
+  #inicio h1, #inicio h2, #inicio h3, #inicio .disp { font-family: var(--disp); letter-spacing:-.03em; }
+  #inicio .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- palco do herói ---------- */
+  #inicio .palco {
+    position:relative; overflow:hidden; background:var(--ink); color:#EAF1FF;
+    padding: clamp(3rem, 7vw, 6rem) 1.2rem clamp(3.5rem, 8vw, 6.5rem);
+  }
+  #inicio .palco::before {
+    content:''; position:absolute; inset:-30% -10% auto -10%; height:130%;
+    background:
+      radial-gradient(46% 52% at 22% 28%, rgba(46,155,255,.36), transparent 62%),
+      radial-gradient(40% 46% at 82% 16%, rgba(125,227,255,.22), transparent 66%),
+      radial-gradient(50% 60% at 68% 92%, rgba(13,43,107,.75), transparent 70%);
+    animation: respira 14s ease-in-out infinite alternate; pointer-events:none;
+  }
+  #inicio .palco::after {
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background-image:
+      linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+    background-size: 64px 64px;
+    -webkit-mask-image: radial-gradient(120% 90% at 50% 0%, #000 20%, transparent 78%);
+    mask-image: radial-gradient(120% 90% at 50% 0%, #000 20%, transparent 78%);
+  }
+  @keyframes respira { from { transform:translate3d(-2%,-1%,0) scale(1); } to { transform:translate3d(3%,2%,0) scale(1.12); } }
+
+  #inicio .palco-int { position:relative; z-index:2; max-width:1180px; margin:0 auto;
+    display:grid; grid-template-columns: 1.05fr .95fr; gap: clamp(2rem,4vw,3.6rem); align-items:center; }
+  @media (max-width: 980px) { #inicio .palco-int { grid-template-columns:1fr; } }
+
+  #inicio .selo {
+    display:inline-flex; align-items:center; gap:.5rem; font-size:.74rem; font-weight:800;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--glow);
+    border:1px solid rgba(125,227,255,.28); background:rgba(125,227,255,.07);
+    padding:.42rem .85rem; border-radius:999px; margin-bottom:1.4rem;
+  }
+  #inicio .selo i { width:6px; height:6px; border-radius:50%; background:var(--glow);
+                    box-shadow:0 0 12px var(--glow); animation:pulsa 2.4s ease-in-out infinite; }
+  @keyframes pulsa { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+  #inicio h1.titulo { font-size: clamp(2.7rem, 6.4vw, 4.9rem); font-weight:800; line-height:.96;
+                      margin:0 0 1.15rem; color:#fff; }
+  #inicio h1.titulo em {
+    font-style:normal; white-space:nowrap;
+    background:linear-gradient(96deg, #FFB020 12%, #FFE1A0 52%, #FFB020 88%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  #inicio .sub { font-size: clamp(1rem,1.6vw,1.14rem); line-height:1.65; color:#A9BCDC; max-width:33rem; margin:0 0 1.9rem; }
+  #inicio .sub b { color:#DCE8FF; font-weight:600; }
+
+  #inicio .acoes { display:flex; gap:.7rem; flex-wrap:wrap; }
+  #inicio .btn-1, #inicio .btn-2 {
+    font-family:var(--ui); font-weight:700; font-size:.95rem; border-radius:13px;
+    padding:.92rem 1.6rem; cursor:pointer; border:1px solid transparent; transition:.22s;
+    display:inline-flex; align-items:center; gap:.5rem;
+  }
+  #inicio .btn-1 { background:linear-gradient(180deg,#4FB0FF,#2e9bff); color:#04122B;
+                   box-shadow:0 10px 30px -8px rgba(46,155,255,.62); }
+  #inicio .btn-1:hover { transform:translateY(-2px); box-shadow:0 16px 40px -8px rgba(46,155,255,.78); }
+  #inicio .btn-2 { background:rgba(255,255,255,.05); color:#DCE8FF; border-color:rgba(255,255,255,.16); }
+  #inicio .btn-2:hover { background:rgba(255,255,255,.11); transform:translateY(-2px); }
+
+  /* ---------- faixa de categorias ---------- */
+  #inicio .faixa { background:#0d2b6b; padding:.9rem 0; overflow:hidden; border-block:1px solid rgba(255,255,255,.08); }
+  #inicio .desliza { display:flex; gap:2.4rem; width:max-content; animation:desliza 34s linear infinite; }
+  #inicio .faixa:hover .desliza { animation-play-state:paused; }
+  @keyframes desliza { to { transform:translateX(-50%); } }
+  #inicio .desliza span { font-family:var(--disp); font-size:1.02rem; font-weight:600; color:rgba(255,255,255,.62);
+    white-space:nowrap; display:inline-flex; align-items:center; gap:2.4rem; }
+  #inicio .desliza span::after { content:''; width:5px; height:5px; border-radius:50%; background:#2e9bff; }
+
+  /* ---------- blocos claros ---------- */
+  #inicio .bloco { padding: clamp(3.2rem,6vw,5rem) 1.2rem; }
+  #inicio .bloco-int { max-width:1180px; margin:0 auto; }
+  #inicio .olho { font-size:.72rem; font-weight:800; letter-spacing:.16em; text-transform:uppercase;
+                  color:#2e9bff; margin-bottom:.6rem; }
+  #inicio h2.cab { font-size: clamp(1.8rem,3.6vw,2.7rem); font-weight:800; line-height:1.06; margin:0 0 .5rem; color:var(--text); }
+  #inicio .cab-sub { color:var(--text-muted); font-size:1rem; line-height:1.6; max-width:34rem; margin:0 0 2.2rem; }
+  #inicio .cab-linha { display:flex; justify-content:space-between; align-items:flex-end; gap:1rem; flex-wrap:wrap; }
+
+  /* ---------- painel de garantias (coluna do herói) ---------- */
+  #inicio .painel {
+    position:relative; overflow:hidden;
+    background:linear-gradient(168deg, rgba(20,32,60,.9), rgba(8,14,32,.96));
+    border:1px solid rgba(125,227,255,.16); border-radius:22px; padding:1.6rem 1.5rem;
+    box-shadow: 0 30px 70px -24px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.07);
+  }
+  /* faixa de luz que atravessa o painel devagar, uma vez a cada ciclo */
+  #inicio .painel-brilho {
+    position:absolute; top:0; left:-60%; width:55%; height:100%; pointer-events:none;
+    background:linear-gradient(100deg, transparent, rgba(125,227,255,.09), transparent);
+    animation: varre 7s ease-in-out infinite;
+  }
+  @keyframes varre { 0%,62% { left:-60%; } 100% { left:110%; } }
+  #inicio .painel-tit {
+    position:relative; font-size:.72rem; font-weight:800; letter-spacing:.15em;
+    text-transform:uppercase; color:#8FA8D0; margin:0 0 1.1rem;
+  }
+  #inicio .garantias { list-style:none; margin:0; padding:0; position:relative; }
+  #inicio .garantias li {
+    display:flex; gap:.9rem; align-items:flex-start; padding:.85rem 0;
+    border-top:1px solid rgba(255,255,255,.07);
+  }
+  #inicio .garantias li:first-child { border-top:none; padding-top:0; }
+  #inicio .g-ico {
+    width:38px; height:38px; flex-shrink:0; border-radius:11px; font-size:1.05rem;
+    display:grid; place-items:center;
+    background:rgba(125,227,255,.09); border:1px solid rgba(125,227,255,.2);
+  }
+  #inicio .garantias b { display:block; font-size:.92rem; font-weight:700; color:#EAF1FF; margin-bottom:.15rem; }
+  #inicio .garantias small { display:block; font-size:.8rem; line-height:1.5; color:#8FA8D0; }
+
+  /* ---------- pilares ---------- */
+  #inicio .pilares { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:1.1rem; margin-top:2.2rem; }
+  #inicio .pilar {
+    position:relative; padding:1.6rem 1.4rem 1.5rem; border-radius:18px;
+    border:1px solid var(--border); background:var(--card); transition:.3s cubic-bezier(.2,.8,.2,1);
+  }
+  #inicio .pilar:hover { transform:translateY(-6px); border-color:#2e9bff; box-shadow:0 24px 46px -26px rgba(13,43,107,.5); }
+  /* A numeração existe porque os pilares têm ordem de importância real */
+  #inicio .p-num {
+    font-family:var(--disp); font-size:2.4rem; font-weight:800; line-height:1;
+    color:transparent; -webkit-text-stroke:1.5px var(--border); display:block; margin-bottom:.7rem;
+    transition:-webkit-text-stroke-color .3s;
+  }
+  #inicio .pilar:hover .p-num { -webkit-text-stroke-color:#2e9bff; }
+  #inicio .pilar h3 { font-size:1.08rem; font-weight:800; margin:0 0 .5rem; color:var(--text); line-height:1.25; }
+  #inicio .pilar p { font-size:.88rem; line-height:1.6; color:var(--text-muted); margin:0; }
+
+  /* ---------- categorias ---------- */
+  #inicio .cats { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:.8rem; }
+  #inicio .cat {
+    position:relative; overflow:hidden; border-radius:15px; padding:1.15rem 1.1rem;
+    border:1px solid var(--border); background:var(--card); cursor:pointer; text-align:left;
+    font-family:inherit; transition:.26s cubic-bezier(.2,.8,.2,1);
+  }
+  #inicio .cat:hover { transform:translateY(-4px); border-color:#2e9bff; }
+  #inicio .cat::after {
+    content:''; position:absolute; right:-24px; bottom:-24px; width:76px; height:76px; border-radius:50%;
+    background:radial-gradient(circle, rgba(46,155,255,.2), transparent 68%); transition:.3s;
+  }
+  #inicio .cat:hover::after { transform:scale(1.5); }
+  #inicio .cat b { display:block; font-size:.95rem; font-weight:700; color:var(--text); margin-bottom:.2rem; position:relative; }
+  #inicio .cat small { font-size:.76rem; color:var(--text-muted); position:relative; }
+
+  /* ---------- contatos ---------- */
+  #inicio .contatos { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:1rem; }
+  #inicio .ccard {
+    display:flex; align-items:center; gap:.95rem; text-decoration:none;
+    padding:1.15rem 1.25rem; border-radius:16px; border:1px solid var(--border);
+    background:var(--card); transition:.26s cubic-bezier(.2,.8,.2,1);
+  }
+  #inicio .ccard:hover { transform:translateY(-4px); box-shadow:0 22px 42px -26px rgba(13,43,107,.5); }
+  #inicio .ccard.zap:hover   { border-color:#25d366; }
+  #inicio .ccard.insta:hover { border-color:#E1306C; }
+  #inicio .ccard.mapa:hover  { border-color:#2e9bff; }
+  #inicio .c-ico { width:44px; height:44px; flex-shrink:0; border-radius:13px; font-size:1.25rem;
+                   display:grid; place-items:center; background:var(--surf-2); }
+  #inicio .ccard.zap .c-ico   { background:rgba(37,211,102,.13); }
+  #inicio .ccard.insta .c-ico { background:rgba(225,48,108,.13); }
+  #inicio .ccard.mapa .c-ico  { background:rgba(46,155,255,.13); }
+  #inicio .ccard div { flex:1; min-width:0; }
+  #inicio .ccard b { display:block; font-size:.95rem; font-weight:700; color:var(--text); }
+  #inicio .ccard small { font-size:.82rem; color:var(--text-muted); }
+  #inicio .c-seta { font-size:1.1rem; color:var(--text-muted); transition:transform .26s; flex-shrink:0; }
+  #inicio .ccard:hover .c-seta { transform:translateX(4px); }
+
+  #inicio .pagar { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:1rem; }
+  #inicio .pcard { border:1px solid var(--border); border-radius:16px; padding:1.3rem; background:var(--card); transition:.25s; }
+  #inicio .pcard:hover { border-color:#2e9bff; transform:translateY(-4px); }
+  #inicio .pcard .ico { font-size:1.5rem; margin-bottom:.7rem; display:block; }
+  #inicio .pcard h3 { font-size:1rem; font-weight:800; margin:0 0 .35rem; color:var(--text); }
+  #inicio .pcard p { font-size:.85rem; color:var(--text-muted); line-height:1.55; margin:0; }
+
+  #inicio .final { position:relative; overflow:hidden; background:#050A18; color:#fff; text-align:center;
+                   padding: clamp(3.4rem,7vw,5.4rem) 1.2rem; }
+  #inicio .final::before { content:''; position:absolute; inset:0;
+    background:radial-gradient(60% 90% at 50% 108%, rgba(46,155,255,.42), transparent 68%); }
+  #inicio .final > * { position:relative; z-index:2; }
+  #inicio .final h2 { font-size:clamp(1.9rem,4.2vw,3rem); font-weight:800; margin:0 0 .7rem; line-height:1.05; color:#fff; }
+  #inicio .final p { color:#A9BCDC; margin:0 auto 1.9rem; max-width:31rem; line-height:1.6; }
+
+  #inicio .sobe { opacity:0; transform:translateY(26px); transition:opacity .75s ease, transform .75s cubic-bezier(.2,.8,.2,1); }
+  #inicio .sobe.vis { opacity:1; transform:none; }
+
+  /* Sem menu lateral: a vitrine ocupa a largura toda */
+  body.modo-vitrine .sidebar { display:none !important; }
+  body.modo-vitrine .main-area { margin-left:0 !important; }
+  body.modo-vitrine .container { max-width:none; padding:0 0 3rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #inicio .palco::before, #inicio .desliza, #inicio .selo i { animation:none !important; }
+    #inicio .sobe { opacity:1; transform:none; transition:none; }
+    #inicio .pilar:hover, #inicio .cat:hover, #inicio .ccard:hover,
+    #inicio .pcard:hover, #inicio .btn-1:hover, #inicio .btn-2:hover { transform:none; }
+    #inicio .painel-brilho { animation:none; }
+  }
+
   .cli-papel { padding:.35rem .5rem; border-radius:8px; border:1px solid var(--border);
                background:var(--card); color:var(--text); font-family:inherit; font-size:.8rem;
                font-weight:700; cursor:pointer; }
@@ -907,7 +1126,7 @@
 <body>
 
 <header class="topbar">
-  <div class="brand" onclick="switchTab('loja')">
+  <div class="brand" onclick="switchTab('inicio')">
     <img id="logo-nav" class="brand-logo" alt="ZAP STORE">
     <span id="store-name">ZAP STORE</span>
   </div>
@@ -962,6 +1181,7 @@
 <div class="app-shell">
   <aside class="sidebar">
     <div class="side-title">Navegação</div>
+    <button class="side-btn" data-tab="inicio" onclick="switchTab('inicio')"><span class="s-ico">✨</span> Início</button>
     <button class="side-btn active" data-tab="loja" onclick="switchTab('loja')"><span class="s-ico">🏠</span> Catálogo</button>
     <button class="side-btn" data-tab="carrinho" onclick="switchTab('carrinho')"><span class="s-ico">🛒</span> Carrinho <span class="side-badge" id="side-cart-badge" style="display:none">0</span></button>
 
@@ -1008,7 +1228,161 @@
 <div class="container">
 
   <!-- ================= CATÁLOGO ================= -->
-  <div id="loja" class="section active">
+  <!-- ===================== INÍCIO — A VITRINE ===================== -->
+  <div id="inicio" class="section active">
+
+    <!-- Herói: em vez de anunciar o atacado, deixa a pessoa acionar a regra -->
+    <section class="palco">
+      <div class="palco-int">
+        <div>
+          <span class="selo"><i></i> Macapá · Amapá</span>
+          <h1 class="titulo">Três itens.<br>Preço de <em>atacado</em>.</h1>
+          <p class="sub">
+            Não precisa levar três do mesmo produto. <b>Junte 3 itens quaisquer</b>
+            no carrinho e o desconto de atacado vale para tudo que estiver lá dentro.
+          </p>
+          <div class="acoes">
+            <button class="btn-1" onclick="switchTab('loja')">Ver o catálogo →</button>
+            <button class="btn-2" onclick="document.getElementById('ini-destaques').scrollIntoView({behavior:'smooth'})">
+              O que está saindo
+            </button>
+          </div>
+        </div>
+
+        <!-- Painel de garantias: o que a loja assume com quem compra -->
+        <div class="painel">
+          <div class="painel-brilho"></div>
+          <p class="painel-tit">O que você leva junto</p>
+          <ul class="garantias">
+            <li><span class="g-ico">🛡️</span><div><b>Produto de qualidade</b><small>Marcas conhecidas, com garantia contra defeito de fábrica.</small></div></li>
+            <li><span class="g-ico">🚚</span><div><b>Entrega rápida</b><small>Combinada na hora do pedido, sem espera de semanas.</small></div></li>
+            <li><span class="g-ico">🔒</span><div><b>Pagamento seguro</b><small>Pix, cartão e boleto processados pela Asaas.</small></div></li>
+            <li><span class="g-ico">📄</span><div><b>Compra registrada</b><small>Cada pedido fica salvo na sua conta, com comprovante em PDF.</small></div></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- Categorias reais da loja, em movimento contínuo -->
+    <div class="faixa"><div class="desliza" id="ini-faixa"></div></div>
+
+    <!-- O que sustenta a loja -->
+    <section class="bloco" id="ini-sobre">
+      <div class="bloco-int">
+        <div class="sobe" style="max-width:40rem">
+          <p class="olho">A Zap Store</p>
+          <h2 class="cab">Tecnologia que chega perto</h2>
+          <p class="cab-sub">
+            Uma loja de Macapá montada para resolver o básico bem feito: produto que funciona,
+            preço que fecha e alguém do outro lado quando você precisa falar.
+          </p>
+        </div>
+
+        <div class="pilares">
+          <article class="pilar sobe">
+            <span class="p-num">01</span>
+            <h3>Curadoria, não catálogo infinito</h3>
+            <p>Cada item entra depois de ser testado. Se não presta, não fica na prateleira — por isso a lista é enxuta.</p>
+          </article>
+          <article class="pilar sobe">
+            <span class="p-num">02</span>
+            <h3>Preço que abre para quem leva mais</h3>
+            <p>A partir de três itens no carrinho, o valor de atacado passa a valer para toda a lista. Vale para revenda e para quem compra em casa.</p>
+          </article>
+          <article class="pilar sobe">
+            <span class="p-num">03</span>
+            <h3>Sempre o que acabou de chegar</h3>
+            <p>Acompanhamos o que entra no mercado de perto. Lançou um acessório novo, uma versão melhor de algo que você já usa? Chega aqui primeiro.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Categorias reais, como porta de entrada do catálogo -->
+    <section class="bloco" style="background:var(--surf-2)">
+      <div class="bloco-int">
+        <div class="cab-linha sobe">
+          <div>
+            <p class="olho">Por onde começar</p>
+            <h2 class="cab">Escolha uma categoria</h2>
+            <p class="cab-sub">Do acessório de celular ao utensílio de cozinha.</p>
+          </div>
+          <button class="btn-clear" onclick="switchTab('loja')">Ver catálogo completo →</button>
+        </div>
+        <div class="cats" id="ini-cats"></div>
+      </div>
+    </section>
+
+    <!-- Como pagar -->
+    <section class="bloco" style="background:var(--surf-2)">
+      <div class="bloco-int">
+        <div class="sobe">
+          <p class="olho">Sem complicação</p>
+          <h2 class="cab">Do jeito que der para você</h2>
+          <p class="cab-sub">Escolha na hora de fechar. Todo pagamento online passa pela Asaas.</p>
+        </div>
+        <div class="pagar sobe">
+          <div class="pcard">
+            <span class="ico">⚡</span>
+            <h3>Pix</h3>
+            <p>Cai na hora e o pedido entra na fila de separação assim que o pagamento confirma.</p>
+          </div>
+          <div class="pcard">
+            <span class="ico">💳</span>
+            <h3>Cartão</h3>
+            <p>Crédito ou débito direto pelo site, sem precisar combinar nada por fora.</p>
+          </div>
+          <div class="pcard">
+            <span class="ico">📄</span>
+            <h3>Boleto em até 10x</h3>
+            <p>Para compras maiores. A loja emite o carnê e você acompanha as parcelas por aqui.</p>
+          </div>
+          <div class="pcard">
+            <span class="ico">💬</span>
+            <h3>WhatsApp</h3>
+            <p>Prefere falar com alguém? Monte o carrinho e envie o pedido direto pelo WhatsApp.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Contato -->
+    <section class="bloco" id="ini-contato">
+      <div class="bloco-int">
+        <div class="sobe" style="max-width:38rem">
+          <p class="olho">Fale com a loja</p>
+          <h2 class="cab">A gente responde</h2>
+          <p class="cab-sub">Dúvida sobre um produto, prazo de entrega ou pedido em andamento — escolha o canal.</p>
+        </div>
+        <div class="contatos sobe">
+          <a class="ccard zap" href="https://wa.me/5596991572264" target="_blank" rel="noopener">
+            <span class="c-ico">💬</span>
+            <div><b>WhatsApp</b><small>+55 96 99157-2264</small></div>
+            <span class="c-seta">→</span>
+          </a>
+          <a class="ccard insta" href="https://www.instagram.com/zap_store_br" target="_blank" rel="noopener">
+            <span class="c-ico">📸</span>
+            <div><b>Instagram</b><small>@zap_store_br</small></div>
+            <span class="c-seta">→</span>
+          </a>
+          <a class="ccard mapa" href="https://maps.app.goo.gl/JgsFtU3xGMPrPMXZA" target="_blank" rel="noopener">
+            <span class="c-ico">📍</span>
+            <div><b>Onde estamos</b><small>Ver no mapa · Macapá, AP</small></div>
+            <span class="c-seta">→</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Chamada final -->
+    <section class="final">
+      <h2>Comece pelo carrinho</h2>
+      <p>Monte a lista com calma. O desconto de atacado aparece sozinho quando o terceiro item entra.</p>
+      <button class="btn-1" onclick="switchTab('loja')">Abrir o catálogo →</button>
+    </section>
+  </div>
+
+  <div id="loja" class="section">
     <div class="banner-wrap" id="banner-wrap" style="display:none">
       <div class="banner-track" id="banner-track"></div>
       <button class="banner-nav prev" onclick="bannerIr(-1)">‹</button>
@@ -1964,7 +2338,8 @@
 </div><!-- /app-shell -->
 
 <nav class="bottom-nav">
-  <button class="active" data-tab="loja" onclick="switchTab('loja')"><span class="bn-ico">🏠</span>Catálogo</button>
+  <button class="active" data-tab="inicio" onclick="switchTab('inicio')"><span class="bn-ico">✨</span>Início</button>
+  <button data-tab="loja" onclick="switchTab('loja')"><span class="bn-ico">🏠</span>Catálogo</button>
   <button data-tab="carrinho" onclick="switchTab('carrinho')"><span class="bn-ico">🛒</span>Carrinho<span class="side-badge" id="bn-cart-badge" style="display:none">0</span></button>
   <button data-tab="meuspedidos" onclick="switchTab('meuspedidos')"><span class="bn-ico">📋</span>Pedidos</button>
   <button data-tab="favoritos" onclick="switchTab('favoritos')"><span class="bn-ico">❤️</span>Favoritos</button>
@@ -2434,12 +2809,16 @@ function switchTab(tab) {
   // O PDV é tela de operação: esconde a busca da loja e os filtros laterais,
   // que só atrapalhariam quem está atendendo no balcão.
   document.body.classList.toggle('modo-pdv', tab === 'pdv' || tab === 'vendedor');
+  // A vitrine é tela de entrada: sem menu lateral e sem margem, para o
+  // herói ocupar a largura inteira.
+  document.body.classList.toggle('modo-vitrine', tab === 'inicio');
   // A busca some no PDV e na Área do Vendedor: a barra encolhe e o espaço
   // reservado precisa encolher junto.
   requestAnimationFrame(ajustarAlturaTopo);
   if (tab === 'carrinho') renderCarrinho();
   if (tab === 'meuspedidos') renderMeusPedidos();
   if (tab === 'favoritos') renderFavoritos();
+  if (tab === 'inicio') renderInicio();
   if (tab === 'pdv') pdvAbrir();
   if (tab === 'vendedor') vendAbrir();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2493,20 +2872,130 @@ function blocoPrecos(p, grande) {
     </div>`;
 }
 
+
+/* ==================== PÁGINA INÍCIO — A VITRINE ====================
+ * A página é institucional: fala do que a loja entrega, não expõe produto
+ * solto. A única parte que vem do banco são as categorias, que funcionam
+ * como porta de entrada para o catálogo.
+ */
+let iniObservador = null;
+
+function renderInicio() {
+  if (!document.getElementById('ini-cats')) return;
+
+  const cats = [...new Set(
+    produtos.filter(p => p.ativo !== false).map(p => p.categoria).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b));
+
+  /* --- faixa em movimento --- */
+  const faixa = document.getElementById('ini-faixa');
+  if (faixa) {
+    const base = cats.length ? cats : ['Eletrônicos', 'Acessórios', 'Utilidades', 'Casa', 'Áudio'];
+    const bloco = base.map(c => `<span>${c}</span>`).join('');
+    // Duplicado de propósito: é o que faz o deslize emendar sem salto
+    faixa.innerHTML = bloco + bloco;
+  }
+
+  /* --- grade de categorias --- */
+  const alvo = document.getElementById('ini-cats');
+  alvo.innerHTML = cats.length
+    ? cats.map(c => `
+        <button class="cat sobe" onclick="irParaCategoria('${String(c).replace(/'/g, "\\'")}')">
+          <b>${c}</b>
+          <small>Ver produtos →</small>
+        </button>`).join('')
+    : '<p class="cab-sub">As categorias aparecem assim que o catálogo carregar.</p>';
+
+  ativarEntrada();
+}
+
+// Leva ao catálogo já filtrado pela categoria escolhida
+function irParaCategoria(cat) {
+  switchTab('loja');
+  const sel = document.getElementById('f-categoria');
+  if (sel) {
+    sel.value = cat;
+    const lateral = document.getElementById('sf-categoria');
+    if (lateral) lateral.value = cat;
+    renderCatalog();
+  }
+}
+
+/* ---------- Entrada dos blocos ao rolar ---------- */
+function ativarEntrada() {
+  const alvos = document.querySelectorAll('#inicio .sobe:not(.vis)');
+  if (!alvos.length) return;
+  if (!('IntersectionObserver' in window)) {
+    alvos.forEach(e => e.classList.add('vis'));
+    return;
+  }
+  if (!iniObservador) {
+    iniObservador = new IntersectionObserver(ent => {
+      ent.forEach((e, i) => {
+        if (!e.isIntersecting) return;
+        // Escalonar dá sensação de sequência, em vez de tudo aparecer junto
+        setTimeout(() => e.target.classList.add('vis'), i * 70);
+        iniObservador.unobserve(e.target);
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: .12 });
+  }
+  alvos.forEach(e => iniObservador.observe(e));
+}
+
 /* ==================== CATÁLOGO ==================== */
+/*
+ * Traduz a falha do Firestore para algo acionável. A mensagem única de antes
+ * ("verifique a configuração") servia para qualquer causa e não ajudava a
+ * descobrir se o problema era regra, cota estourada ou queda de rede.
+ */
+function explicarErroFirestore(err) {
+  const c = String(err?.code || '').toLowerCase();
+  const base = 'font-size:.92rem; line-height:1.6; text-align:left; max-width:640px; margin:0 auto;';
+
+  if (c.includes('permission-denied'))
+    return `<div style="${base}"><strong>⛔ O banco recusou a leitura.</strong><br>
+      As regras do Firestore estão bloqueando o catálogo. Publique de novo o arquivo
+      <code>firestore.rules</code> em <em>Firebase → Firestore Database → Regras</em>.<br>
+      <small style="color:var(--text-muted)">Se as regras expiraram por data, é isso.</small></div>`;
+
+  if (c.includes('resource-exhausted'))
+    return `<div style="${base}"><strong>📊 A cota gratuita do Firebase acabou.</strong><br>
+      O plano Spark tem limite diário de leituras e mensal de tráfego. Como as fotos dos
+      produtos são gravadas dentro dos documentos, cada abertura da loja consome muito.<br>
+      Veja em <em>Firebase → Uso e faturamento</em>. A cota diária reinicia à meia-noite (Pacífico).<br>
+      <small style="color:var(--text-muted)">Solução definitiva: mover as fotos para o Firebase Storage.</small></div>`;
+
+  if (c.includes('unavailable') || c.includes('network'))
+    return `<div style="${base}"><strong>📡 Sem conexão com o Firebase.</strong><br>
+      Verifique sua internet e tente recarregar a página.</div>`;
+
+  if (c.includes('failed-precondition'))
+    return `<div style="${base}"><strong>⚙️ O Firestore não está pronto.</strong><br>
+      Confirme em <em>Firebase → Firestore Database</em> que o banco foi criado neste projeto.</div>`;
+
+  if (c.includes('unauthenticated'))
+    return `<div style="${base}"><strong>🔒 Sessão expirada.</strong><br>
+      Saia da conta e entre de novo.</div>`;
+
+  return `<div style="${base}"><strong>⚠️ Não foi possível carregar os produtos.</strong><br>
+    ${err?.code ? `Código: <code>${err.code}</code>` : ''}
+    <br><small style="color:var(--text-muted)">Abra o console do navegador (F12) para ver o detalhe.</small></div>`;
+}
+
 function carregarProdutos() {
   db.collection('produtos').onSnapshot(snap => {
     produtos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     document.getElementById('catalog-loader').style.display = 'none';
     montarCategorias();
     renderCatalog();
+    renderInicio();
     renderAdminTable();
     // Dashboard e PDV usam a lista de produtos: mantém as duas telas em dia
     if (document.getElementById('aview-dashboard')?.style.display !== 'none') renderDashboard();
     if (document.getElementById('pdv')?.classList.contains('active')) pdvBuscar();
   }, err => {
-    document.getElementById('catalog-loader').innerHTML = '⚠️ Erro ao carregar produtos. Verifique a configuração do Firebase.';
-    console.error(err);
+    document.getElementById('catalog-loader').innerHTML = explicarErroFirestore(err);
+    console.error('Falha ao carregar produtos:', err.code, err.message, err);
   });
 }
 
@@ -3504,6 +3993,14 @@ function traduzErroAuth(e) {
   if (c.includes('weak-password')) return 'A senha precisa ter pelo menos 6 caracteres.';
   if (c.includes('user-not-found') || c.includes('wrong-password') || c.includes('invalid-credential')) return 'E-mail ou senha incorretos.';
   if (c.includes('popup-closed')) return 'Login cancelado.';
+  // Trocar o domínio do site quebra o login social até o endereço novo ser
+  // liberado no Firebase — sem esta mensagem, o motivo fica invisível.
+  if (c.includes('unauthorized-domain'))
+    return 'Este endereço ainda não está liberado no Firebase. Adicione o domínio em Authentication → Settings → Domínios autorizados.';
+  if (c.includes('popup-blocked')) return 'O navegador bloqueou a janela do Google. Libere os pop-ups para este site.';
+  if (c.includes('operation-not-allowed')) return 'O login pelo Google não está ativado no Firebase.';
+  if (c.includes('account-exists-with-different-credential'))
+    return 'Este e-mail já tem conta com senha. Entre com e-mail e senha.';
   if (c.includes('too-many-requests')) return 'Muitas tentativas. Aguarde um instante.';
   // O erro genérico escondia o caso mais comum aqui: regra do Firestore
   // barrando a gravação. Sem essa mensagem, fica impossível saber o motivo.
@@ -8521,6 +9018,7 @@ document.getElementById('favicon').href = LOGO_B64;
 /* ==================== INIT ==================== */
 iniciarNoite();
 iniciarAlturaTopo();
+switchTab('inicio');
 iniciarScrollInfinito();
 carregarProdutos();
 carregarConfig();
