@@ -2841,7 +2841,17 @@ function toast(msg) {
 }
 
 const fmt = v => 'R$ ' + Number(v).toFixed(2).replace('.', ',');
-const getImagens = p => (p.imagens && p.imagens.length ? p.imagens : (p.imagem ? [p.imagem] : []));
+/*
+ * O site é servido por HTTPS. Qualquer imagem apontando para http:// faz o
+ * navegador marcar a página inteira como "não segura" — e o cadeado sumir.
+ * Isso acontece com links externos que vieram da importação por planilha.
+ * Aqui o endereço é corrigido na leitura, então vale para catálogo, PDFs e
+ * qualquer tela, sem precisar reeditar produto por produto.
+ */
+const httpsSeguro = u => (typeof u === 'string' && u.startsWith('http://'))
+  ? 'https://' + u.slice(7) : u;
+
+const getImagens = p => (p.imagens && p.imagens.length ? p.imagens : (p.imagem ? [p.imagem] : [])).map(httpsSeguro);
 const getCapa = p => { const imgs = getImagens(p); const i = p.capa || 0; return imgs[i] || imgs[0] || ''; };
 
 const QTD_ATACADO = 3; // a partir de quantas unidades o preço de atacado é aplicado
@@ -4220,7 +4230,7 @@ function aplicarTema(t) {
     raiz.setProperty('--marca-txt', v('tituloCor'));
   }
 
-  const logo = t.logo || (typeof LOGO_B64 !== 'undefined' ? LOGO_B64 : '');
+  const logo = httpsSeguro(t.logo || (typeof LOGO_B64 !== 'undefined' ? LOGO_B64 : ''));
   ['logo-nav','logo-login','logo-conta'].forEach(id => {
     const el = document.getElementById(id);
     if (el && logo) el.src = logo;
@@ -4359,7 +4369,7 @@ function renderBanner() {
 
   wrap.style.display = 'block';
   document.getElementById('banner-track').innerHTML =
-    imgs.map(src => `<div class="banner-slide"><img src="${src}" alt="Banner"></div>`).join('');
+    imgs.map(src => `<div class="banner-slide"><img src="${httpsSeguro(src)}" alt="Banner"></div>`).join('');
   document.getElementById('banner-dots').innerHTML =
     imgs.map((_, i) => `<span class="${i === 0 ? 'on' : ''}" onclick="bannerPara(${i})"></span>`).join('');
   bannerIdx = 0;
