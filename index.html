@@ -924,6 +924,21 @@
     #inicio .painel-brilho { animation:none; }
   }
 
+  /* Marcar parcela já recebida no lançamento do histórico */
+  .parc-topo-acoes { display:flex; align-items:center; gap:.5rem; padding:.45rem .85rem;
+    font-size:.72rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--text-muted); background:var(--surf-2); border-radius:9px 9px 0 0; }
+  .parc-topo-acoes span { flex:1; }
+  .parc-topo-acoes button { background:none; border:none; font-family:inherit; cursor:pointer;
+    font-size:.72rem; font-weight:800; color:var(--marca-txt); text-transform:none; letter-spacing:0;
+    padding:.2rem .45rem; border-radius:6px; }
+  .parc-topo-acoes button:hover { background:var(--surf-3); }
+  .parc-sel.marcada { background:var(--ok-bg); }
+  .parc-check { display:inline-flex; align-items:center; gap:.35rem; flex-shrink:0; }
+  .parc-check input { width:17px; height:17px; accent-color:var(--accent); cursor:pointer; margin:0; }
+  .parc-check b { font-size:.74rem; font-weight:800; color:var(--text-muted); }
+  .parc-sel.marcada .parc-check b { color:var(--ok-txt); }
+
   .cli-papel { padding:.35rem .5rem; border-radius:8px; border:1px solid var(--border);
                background:var(--card); color:var(--text); font-family:inherit; font-size:.8rem;
                font-weight:700; cursor:pointer; }
@@ -5317,6 +5332,11 @@ function vaMontarParcelas() {
   renderVaParcelas();
 }
 
+function vaMarcarTodas(valor) {
+  vaParcelas.forEach(p => p.paga = valor);
+  renderVaParcelas();
+}
+
 function vaTogglePaga(n) {
   const p = vaParcelas.find(x => x.n === n);
   if (p) { p.paga = !p.paga; renderVaParcelas(); }
@@ -5334,19 +5354,30 @@ function renderVaParcelas() {
   }
 
   const hoje = new Date().toISOString().slice(0, 10);
-  alvo.innerHTML = vaParcelas.map(p => {
-    const atrasada = !p.paga && p.vencimento < hoje;
-    const cls = p.paga ? 'pt-pago' : (atrasada ? 'pt-atraso' : 'pt-prazo');
-    const txt = p.paga ? '✅ Paga' : (atrasada ? '⚠️ Vencida' : '⏳ A vencer');
-    return `
-    <div class="parc-li" style="border-top:1px solid var(--border)">
-      <span class="parc-n">${p.n}/${vaParcelas.length}</span>
-      <div class="parc-info"><div class="parc-venc">Vence ${dataBR(p.vencimento)}</div></div>
-      <span class="parc-val">${fmt(p.valor)}</span>
-      <button class="parc-tag ${cls}" style="border:none;cursor:pointer;font-family:inherit"
-              onclick="vaTogglePaga(${p.n})" title="Trocar entre paga e em aberto">${txt}</button>
-    </div>`;
-  }).join('');
+  const nPagas = vaParcelas.filter(p => p.paga).length;
+
+  alvo.innerHTML = `
+    <div class="parc-topo-acoes">
+      <span>Já recebidas</span>
+      <button type="button" onclick="vaMarcarTodas(true)">Marcar todas</button>
+      <button type="button" onclick="vaMarcarTodas(false)">Limpar</button>
+    </div>` +
+    vaParcelas.map(p => {
+      const atrasada = !p.paga && p.vencimento < hoje;
+      const cls = p.paga ? 'pt-pago' : (atrasada ? 'pt-atraso' : 'pt-prazo');
+      const txt = p.paga ? 'Paga' : (atrasada ? 'Vencida' : 'A vencer');
+      return `
+      <label class="parc-li parc-sel${p.paga ? ' marcada' : ''}" style="border-top:1px solid var(--border); cursor:pointer">
+        <span class="parc-n">${p.n}/${vaParcelas.length}</span>
+        <div class="parc-info"><div class="parc-venc">Vence ${dataBR(p.vencimento)}</div></div>
+        <span class="parc-val">${fmt(p.valor)}</span>
+        <span class="parc-tag ${cls}">${txt}</span>
+        <span class="parc-check">
+          <input type="checkbox" ${p.paga ? 'checked' : ''} onchange="vaTogglePaga(${p.n})">
+          <b>Pago</b>
+        </span>
+      </label>`;
+    }).join('');
 
   const pagas = vaParcelas.filter(p => p.paga).length;
   const falta = vaParcelas.filter(p => !p.paga).reduce((s, p) => s + p.valor, 0);
