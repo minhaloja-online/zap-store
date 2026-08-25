@@ -8912,7 +8912,7 @@ function baixarModeloProdutos() {
       Number(p.custo) || '',
       Number(p.preco) || '',
       (p.precoAtacado !== undefined && p.precoAtacado !== null) ? Number(p.precoAtacado) : '',
-      ''   // estoque em branco: é o que muda a cada carga
+      ''   // em branco: preencha só a quantidade que está CHEGANDO
     ])
   ];
   // Duas linhas vazias no fim para digitar produto novo sem apagar nada
@@ -8924,9 +8924,10 @@ function baixarModeloProdutos() {
     ['Esta planilha já vem com os produtos cadastrados hoje na loja.'],
     ['Use para conferir os dados, corrigir preços ou digitar produtos novos nas linhas em branco do fim.'],
     [],
-    ['ATENÇÃO: ao importar, cada linha vira um produto NOVO no catálogo.'],
-    ['Se você enviar a planilha inteira sem apagar nada, os produtos vão ficar duplicados.'],
-    ['Para cadastrar só o que é novo, apague as linhas dos produtos que já existem antes de enviar.'],
+    ['Produtos são reconhecidos pelo NOME. Se o nome já existe no catálogo, a linha NÃO cria'],
+    ['um produto novo: o estoque digitado é SOMADO ao que já tem, e os preços são atualizados.'],
+    ['Por isso, na coluna estoque preencha só o que ESTÁ CHEGANDO agora, não o total.'],
+    ['Deixe a linha com estoque vazio se você só quer corrigir preço ou descrição.'],
     [],
     ['COLUNA', 'O QUE PREENCHER'],
     ['nome', 'Nome do produto. Obrigatório.'],
@@ -8952,6 +8953,12 @@ function baixarModeloProdutos() {
 
   XLSX.writeFile(wb, 'modelo-produtos-' + new Date().toISOString().slice(0, 10) + '.xlsx');
   toast(`⬇️ Modelo baixado com ${atuais.length} produto(s) preenchido(s).`);
+}
+
+// Chave de comparação de nomes: ignora acento, caixa e espaço repetido
+function chaveNome(n) {
+  return String(n || '').toLowerCase().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 function mapearLinha(linhaObj) {
@@ -9006,6 +9013,11 @@ function lerPlanilhaImportacao(input) {
         const custo = (l.custo !== undefined && l.custo !== '') ? (parseNumeroBR(l.custo) || 0) : 0;
         const categoria = String(l.categoria || '').trim();
 
+        // Nome igual = mesmo produto. Comparação sem acento, sem espaço
+        // sobrando e sem diferenciar maiúscula, senão "Cabo USB " e
+        // "cabo usb" virariam dois cadastros.
+        const existente = nome ? produtos.find(pr => chaveNome(pr.nome) === chaveNome(nome)) : null;
+
         const erros = [];
         if (!nome) erros.push('nome vazio');
         if (preco === null) erros.push('preço inválido');
@@ -9015,6 +9027,8 @@ function lerPlanilhaImportacao(input) {
         return {
           linha: idx + 2, // +2 pois linha 1 é cabeçalho na planilha original
           nome, descricao, preco, precoAtacado, custo, estoque, categoria,
+          existenteId: existente ? existente.id : null,
+          estoqueAtual: existente ? (Number(existente.estoque) || 0) : 0,
           valido: erros.length === 0,
           erros
         };
@@ -9111,8 +9125,12 @@ function renderPreviewImportacao() {
   const invalidas = importLinhas.length - validas;
 
   const comFoto = importLinhas.filter(l => l.imagemBase64).length;
+  const repor = importLinhas.filter(l => l.valido && l.existenteId).length;
+  const novos = validas - repor;
   document.getElementById('import-resumo').innerHTML =
-    `${importLinhas.length} linha(s) lida(s) — <span style="color:var(--accent-dark)">${validas} pronta(s) para importar</span>` +
+    `${importLinhas.length} linha(s) lida(s) — ` +
+    `<span style="color:var(--accent-dark)">${novos} produto(s) novo(s)</span>` +
+    (repor ? ` · <span style="color:var(--alerta-txt)">${repor} já existe(m): o estoque será somado</span>` : '') +
     (invalidas ? ` · <span style="color:var(--danger)">${invalidas} com erro (serão ignoradas)</span>` : '') +
     (comFoto ? ` · 🖼️ ${comFoto} com foto` : '');
 
@@ -9123,17 +9141,21 @@ function renderPreviewImportacao() {
       <td>${l.nome || '<em style="color:var(--text-muted)">—</em>'}</td>
       <td>${l.preco !== null ? fmt(l.preco) : '—'}</td>
       <td>${l.precoAtacado !== null && l.precoAtacado !== undefined ? fmt(l.precoAtacado) : '—'}</td>
-      <td>${l.estoque}</td>
+      <td>${l.existenteId
+        ? `<strong>${l.estoqueAtual + l.estoque}</strong><br><small style="color:var(--text-muted)">${l.estoqueAtual} + ${l.estoque}</small>`
+        : l.estoque}</td>
       <td>${l.categoria || '—'}</td>
-      <td>${l.valido
-        ? `<span class="imp-badge imp-ok">✔ OK</span>`
-        : `<span class="imp-badge imp-erro" title="${l.erros.join(', ')}">✕ ${l.erros[0]}</span>`
+      <td>${!l.valido
+        ? `<span class="imp-badge imp-erro" title="${l.erros.join(', ')}">✕ ${l.erros[0]}</span>`
+        : l.existenteId
+          ? `<span class="imp-badge" style="background:var(--alerta-bg);color:var(--alerta-txt)">↻ Repor</span>`
+          : `<span class="imp-badge imp-ok">✔ Novo</span>`
       }</td>
     </tr>`).join('');
 
   document.getElementById('btn-confirmar-import').disabled = validas === 0;
   document.getElementById('btn-confirmar-import').textContent = validas
-    ? `✔ Confirmar Importação (${validas} produto${validas > 1 ? 's' : ''})`
+    ? `✔ Confirmar (${novos} novo${novos !== 1 ? 's' : ''}${repor ? ` · ${repor} reposição` : ''})`
     : '✔ Confirmar Importação';
   document.getElementById('import-preview').style.display = 'block';
 }
@@ -9141,7 +9163,14 @@ function renderPreviewImportacao() {
 async function confirmarImportacao() {
   const validas = importLinhas.filter(l => l.valido);
   if (!validas.length) return;
-  if (!confirm(`Importar ${validas.length} produto(s) para o catálogo?`)) return;
+  const nRepor = validas.filter(l => l.existenteId).length;
+  const nNovos = validas.length - nRepor;
+  if (!confirm(
+    `Confirmar a importação?\n\n` +
+    `• ${nNovos} produto(s) novo(s) serão cadastrados\n` +
+    (nRepor ? `• ${nRepor} já existe(m): o estoque será SOMADO ao atual e os preços atualizados\n` : '') +
+    `\nProdutos são reconhecidos pelo nome.`
+  )) return;
 
   const btn = document.getElementById('btn-confirmar-import');
   btn.disabled = true;
@@ -9159,8 +9188,42 @@ async function confirmarImportacao() {
     for (const bloco of blocos) {
       const batch = db.batch();
       bloco.forEach(l => {
-        const ref = db.collection('produtos').doc();
         const img = l.imagemBase64 || '';
+
+        if (l.existenteId) {
+          // Produto já cadastrado: isso é reposição de mercadoria. Soma o
+          // estoque e atualiza os preços da planilha, mas preserva a foto
+          // que já está no ar se a linha vier sem imagem.
+          const atual = produtos.find(pr => pr.id === l.existenteId);
+          const antes = atual ? (Number(atual.estoque) || 0) : 0;
+          const mudancas = {
+            estoque: antes + l.estoque,
+            preco: l.preco,
+            precoAtacado: l.precoAtacado,
+            categoria: l.categoria,
+            atualizadoEm: firebase.firestore.FieldValue.serverTimestamp()
+          };
+          if (l.descricao) mudancas.descricao = l.descricao;
+          if (l.custo) mudancas.custo = l.custo;
+          if (img) { mudancas.imagens = [img]; mudancas.capa = 0; mudancas.imagem = img; }
+
+          batch.update(db.collection('produtos').doc(l.existenteId), mudancas);
+
+          // Deixa registrado de onde veio a entrada, igual ao ajuste manual
+          if (l.estoque > 0) {
+            batch.set(db.collection('estoque_mov').doc(), {
+              produtoId: l.existenteId, produtoNome: l.nome,
+              antes, depois: antes + l.estoque, diferenca: l.estoque,
+              motivo: 'importação de planilha',
+              usuarioId: usuario ? usuario.uid : null,
+              usuarioNome: (perfil?.nome) || (usuario?.email) || '',
+              criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          }
+          return;
+        }
+
+        const ref = db.collection('produtos').doc();
         batch.set(ref, {
           nome: l.nome,
           descricao: l.descricao,
