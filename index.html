@@ -1718,8 +1718,12 @@
       <div class="panel" style="margin-bottom:1.2rem;">
         <h3>📥 Importar Produtos em Massa</h3>
         <p style="font-size:.85rem; color:var(--text-muted); margin-bottom:1rem;">
-          Envie uma planilha (.xlsx ou .csv) com os produtos. Colunas aceitas: <code>nome</code>, <code>descricao</code>, <code>preco</code>, <code>precoAtacado</code>, <code>estoque</code>, <code>categoria</code>.
+          Envie uma planilha (.xlsx ou .csv) com os produtos. Colunas aceitas: <code>nome</code>, <code>descricao</code>, <code>preco</code>, <code>precoAtacado</code>, <code>custo</code>, <code>estoque</code>, <code>categoria</code>.<br>
+          Baixe o modelo abaixo para partir do que já existe — ele vem com os produtos atuais preenchidos.
         </p>
+        <button class="btn-clear" style="width:100%; margin-bottom:.9rem" onclick="baixarModeloProdutos()">
+          ⬇️ Baixar planilha modelo (com os produtos já cadastrados)
+        </button>
         <div class="img-drop" onclick="document.getElementById('import-file').click()">
           <span>📄 Clique para selecionar a planilha (.xlsx ou .csv)</span>
         </div>
@@ -6053,11 +6057,11 @@ async function exportarEstoquePDF() {
 
   doc.autoTable({
     startY: 52,
-    head: [['', 'Produto', 'Categoria', 'Custo', 'Varejo', 'Atacado', 'Estoque', 'Total custo', 'Total venda', 'No site']],
+    head: [['', 'Produto', 'Descrição', 'Categoria', 'Custo', 'Varejo', 'Atacado', 'Estoque', 'Total custo', 'Total venda', 'No site']],
     body: lista.map(p => {
       const q = Number(p.estoque) || 0;
       const c = Number(p.custo) || 0;
-      return ['', p.nome, p.categoria || '-', c ? fmt(c) : '—', fmt(p.preco),
+      return ['', p.nome, p.descricao || '', p.categoria || '-', c ? fmt(c) : '—', fmt(p.preco),
         (p.precoAtacado != null) ? fmt(p.precoAtacado) : '—', q,
         c ? fmt(c * q) : '—', fmt((Number(p.preco) || 0) * q),
         p.ativo === false ? 'Não' : 'Sim'];
@@ -6065,14 +6069,14 @@ async function exportarEstoquePDF() {
     headStyles: { fillColor: [13, 43, 107], fontSize: 8.5 },
     bodyStyles: { fontSize: 8.5, minCellHeight: 14, valign: 'middle' },
     columnStyles: {
-      0: { cellWidth: img + 5 }, 1: { cellWidth: 78 },
-      3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' },
-      6: { halign: 'center', cellWidth: 18 }, 7: { halign: 'right' }, 8: { halign: 'right' },
-      9: { halign: 'center', cellWidth: 16 }
+      0: { cellWidth: img + 5 }, 1: { cellWidth: 58 }, 2: { cellWidth: 46, fontSize: 7.5 },
+      4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' },
+      7: { halign: 'center', cellWidth: 17 }, 8: { halign: 'right' }, 9: { halign: 'right' },
+      10: { halign: 'center', cellWidth: 15 }
     },
     // Destaca em vermelho o que está esgotado, para saltar aos olhos
     didParseCell: d => {
-      if (d.section === 'body' && d.column.index === 6 && Number(d.cell.raw) <= 0) {
+      if (d.section === 'body' && d.column.index === 7 && Number(d.cell.raw) <= 0) {
         d.cell.styles.textColor = [179, 53, 42];
         d.cell.styles.fontStyle = 'bold';
       }
@@ -6112,11 +6116,11 @@ function exportarEstoqueExcel() {
 
   const t = totaisEstoque(lista);
   const linhas = [
-    ['Produto', 'Categoria', 'Custo', 'Varejo', 'Atacado', 'Estoque', 'Total custo', 'Total venda', 'No site'],
+    ['Produto', 'Descrição', 'Categoria', 'Custo', 'Varejo', 'Atacado', 'Estoque', 'Total custo', 'Total venda', 'No site'],
     ...lista.map(p => {
       const q = Number(p.estoque) || 0;
       const c = Number(p.custo) || 0;
-      return [p.nome, p.categoria || '', c || '', Number(p.preco) || 0,
+      return [p.nome, p.descricao || '', p.categoria || '', c || '', Number(p.preco) || 0,
         (p.precoAtacado != null) ? Number(p.precoAtacado) : '', q,
         c ? c * q : '', (Number(p.preco) || 0) * q, p.ativo === false ? 'Não' : 'Sim'];
     }),
@@ -6134,7 +6138,7 @@ function exportarEstoqueExcel() {
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(linhas);
-  ws['!cols'] = [{ wch: 46 }, { wch: 16 }, { wch: 11 }, { wch: 11 }, { wch: 11 },
+  ws['!cols'] = [{ wch: 46 }, { wch: 48 }, { wch: 16 }, { wch: 11 }, { wch: 11 }, { wch: 11 },
                  { wch: 9 }, { wch: 13 }, { wch: 13 }, { wch: 8 }];
   XLSX.utils.book_append_sheet(wb, ws, 'Estoque');
   XLSX.writeFile(wb, 'estoque-' + new Date().toISOString().slice(0, 10) + '.xlsx');
@@ -8878,6 +8882,7 @@ const ALIAS_COLUNAS = {
   descricao: ['descricao', 'descrição', 'desc'],
   preco: ['preco', 'preço', 'valor', 'preco varejo', 'preço varejo', 'varejo'],
   precoAtacado: ['precoatacado', 'preço atacado', 'preco atacado', 'atacado'],
+  custo: ['custo', 'preco de custo', 'preço de custo', 'precocusto', 'preço custo', 'preco custo'],
   estoque: ['estoque', 'qtd', 'quantidade', 'estoque atual'],
   categoria: ['categoria', 'categoria do produto']
 };
@@ -8885,6 +8890,68 @@ const ALIAS_COLUNAS = {
 function normalizarChave(s) {
   return String(s || '').trim().toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // remove acentos
+}
+
+
+/* ---------- Planilha modelo de produtos ----------
+ * Vem com os produtos já cadastrados preenchidos nas colunas que raramente
+ * mudam (nome, descrição, categoria e preços) e com estoque em branco.
+ * Serve para dois usos: conferir/ajustar o que existe fora do site, e ter
+ * uma base pronta para digitar produtos novos no mesmo padrão.
+ */
+function baixarModeloProdutos() {
+  const COLS = ['nome', 'descricao', 'categoria', 'custo', 'preco', 'precoAtacado', 'estoque'];
+
+  const atuais = [...produtos].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+  const linhas = [
+    COLS,
+    ...atuais.map(p => [
+      p.nome || '',
+      p.descricao || '',
+      p.categoria || '',
+      Number(p.custo) || '',
+      Number(p.preco) || '',
+      (p.precoAtacado !== undefined && p.precoAtacado !== null) ? Number(p.precoAtacado) : '',
+      ''   // estoque em branco: é o que muda a cada carga
+    ])
+  ];
+  // Duas linhas vazias no fim para digitar produto novo sem apagar nada
+  linhas.push(COLS.map(() => ''), COLS.map(() => ''));
+
+  const ajuda = [
+    ['COMO USAR ESTA PLANILHA'],
+    [],
+    ['Esta planilha já vem com os produtos cadastrados hoje na loja.'],
+    ['Use para conferir os dados, corrigir preços ou digitar produtos novos nas linhas em branco do fim.'],
+    [],
+    ['ATENÇÃO: ao importar, cada linha vira um produto NOVO no catálogo.'],
+    ['Se você enviar a planilha inteira sem apagar nada, os produtos vão ficar duplicados.'],
+    ['Para cadastrar só o que é novo, apague as linhas dos produtos que já existem antes de enviar.'],
+    [],
+    ['COLUNA', 'O QUE PREENCHER'],
+    ['nome', 'Nome do produto. Obrigatório.'],
+    ['descricao', 'Detalhes que aparecem na página do produto. Opcional.'],
+    ['categoria', 'Categoria do catálogo. Obrigatória.'],
+    ['custo', 'Quanto você pagou por unidade. Não aparece para o cliente — serve para o Dashboard calcular o lucro.'],
+    ['preco', 'Preço de varejo. Obrigatório.'],
+    ['precoAtacado', 'Preço quando o carrinho tem 3 itens ou mais. Precisa ser menor que o varejo. Deixe vazio se não trabalha com atacado.'],
+    ['estoque', 'Quantidade disponível. Vem em branco de propósito: preencha com o que tem hoje.'],
+    [],
+    ['Valores podem ser digitados com vírgula (49,90) ou ponto (49.90).'],
+    ['Não mude os nomes das colunas nem apague a primeira linha.']
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(linhas);
+  ws['!cols'] = [{ wch: 46 }, { wch: 52 }, { wch: 18 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 10 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Produtos');
+
+  const wa = XLSX.utils.aoa_to_sheet(ajuda);
+  wa['!cols'] = [{ wch: 16 }, { wch: 92 }];
+  XLSX.utils.book_append_sheet(wb, wa, 'Instruções');
+
+  XLSX.writeFile(wb, 'modelo-produtos-' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  toast(`⬇️ Modelo baixado com ${atuais.length} produto(s) preenchido(s).`);
 }
 
 function mapearLinha(linhaObj) {
@@ -8936,6 +9003,7 @@ function lerPlanilhaImportacao(input) {
         const preco = parseNumeroBR(l.preco);
         const precoAtacado = (l.precoAtacado !== undefined && l.precoAtacado !== '') ? parseNumeroBR(l.precoAtacado) : null;
         const estoque = l.estoque !== undefined && l.estoque !== '' ? (parseInt(parseNumeroBR(l.estoque)) || 0) : 0;
+        const custo = (l.custo !== undefined && l.custo !== '') ? (parseNumeroBR(l.custo) || 0) : 0;
         const categoria = String(l.categoria || '').trim();
 
         const erros = [];
@@ -8946,7 +9014,7 @@ function lerPlanilhaImportacao(input) {
 
         return {
           linha: idx + 2, // +2 pois linha 1 é cabeçalho na planilha original
-          nome, descricao, preco, precoAtacado, estoque, categoria,
+          nome, descricao, preco, precoAtacado, custo, estoque, categoria,
           valido: erros.length === 0,
           erros
         };
@@ -9092,6 +9160,7 @@ async function confirmarImportacao() {
           descricao: l.descricao,
           preco: l.preco,
           precoAtacado: l.precoAtacado,
+          custo: l.custo || 0,
           estoque: l.estoque,
           categoria: l.categoria,
           imagens: img ? [img] : [], capa: 0, imagem: img,
