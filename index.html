@@ -2498,7 +2498,7 @@
         </div>
         <div class="field" style="margin-bottom:0">
           <label>Forma de pagamento</label>
-          <select id="va-pag">
+          <select id="va-pag" onchange="vaTrocouPagamento()">
             <option>Dinheiro</option><option>Pix</option><option>Débito</option>
             <option>Crédito</option><option>Boleto</option><option>Outro</option>
           </select>
@@ -2542,6 +2542,34 @@
         <input type="number" id="va-desconto" min="0" step="0.01" value="0" oninput="vaAtualizar()">
       </div>
       <div class="pdv-linha total"><span>Total</span><strong id="va-total">R$ 0,00</strong></div>
+
+      <!-- Parcelamento do histórico: aparece só quando a venda foi no boleto -->
+      <div id="va-boleto-box" style="display:none">
+        <div class="cfg-secao">📄 Parcelamento</div>
+        <div class="pdv-filtros" style="margin-bottom:.7rem">
+          <div class="field" style="margin-bottom:0">
+            <label>Em quantas vezes</label>
+            <select id="va-parcelas" onchange="vaMontarParcelas()"></select>
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Vencimento da 1ª</label>
+            <input type="date" id="va-venc" onchange="vaMontarParcelas()">
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:.7rem">
+          <label>CPF / CNPJ do cliente</label>
+          <input type="text" id="va-cpf" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)">
+          <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">
+            Necessário só se você for emitir na Asaas os boletos que ainda faltam.
+          </p>
+        </div>
+        <p style="font-size:.78rem; color:var(--text-muted); margin-bottom:.5rem">
+          Toque na etiqueta para marcar o que <strong>já foi pago</strong>. As parcelas em aberto
+          entram no controle de parcelamentos.
+        </p>
+        <div id="va-lista-parcelas" style="max-height:30vh; overflow-y:auto"></div>
+        <p id="va-resumo-parc" class="cfg-bol-resumo"></p>
+      </div>
 
       <div class="field" style="margin-top:.9rem">
         <label>Situação do pedido</label>
@@ -5055,6 +5083,11 @@ function abrirVendaAntiga() {
   });
   document.getElementById('va-desconto').value = 0;
   document.getElementById('va-status').value = 'enviado';
+  document.getElementById('va-pag').value = 'Dinheiro';
+  document.getElementById('va-boleto-box').style.display = 'none';
+  document.getElementById('va-venc').value = '';
+  document.getElementById('va-cpf').value = '';
+  vaParcelas = [];
   document.getElementById('va-baixar').checked = false;
   document.getElementById('va-msg').style.display = 'none';
   // Data padrão: ontem. Evita lançar sem querer com a data de hoje.
@@ -5187,12 +5220,140 @@ function vaAtualizar() {
   document.getElementById('va-subtotal').textContent = fmt(sub);
   document.getElementById('va-total').textContent = fmt(sub - desc);
 
+  // Valor das parcelas acompanha os itens e o desconto
+  if (document.getElementById('va-pag')?.value === 'Boleto') vaMontarParcelas();
+
   const btn = document.getElementById('va-salvar');
   const semCliente = vaModo === 'cadastrado' && !vaCliente;
   btn.disabled = !vaItens.length || semCliente;
   btn.textContent = semCliente ? 'Escolha o cliente'
                   : !vaItens.length ? 'Adicione os itens'
                   : `Lançar venda · ${fmt(sub - desc)}`;
+}
+
+
+/* ---------- Parcelamento de venda antiga ----------
+ * Venda no boleto lançada depois costuma ter parcelas já quitadas e outras
+ * ainda por vir. As pagas entram como recebidas; as em aberto entram como
+ * "a gerar" — assim aparecem no controle de parcelamentos, contam no que a
+ * loja tem a receber e ganham o botão de emitir o boleto na Asaas.
+ */
+let vaParcelas = [];   // [{n, vencimento, valor, paga}]
+
+// Divide sem perder centavo: a sobra do arredondamento vai na primeira
+function vaDividir(total, n) {
+  const c = Math.round(total * 100);
+  const base = Math.floor(c / n);
+  const sobra = c - base * n;
+  return Array.from({ length: n }, (_, i) => ((i === 0 ? base + sobra : base) / 100));
+}
+
+function vaVencimentos(inicioISO, n) {
+  const [ano, mes, dia] = inicioISO.split('-').map(Number);
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(ano, mes - 1 + i, 1);
+    const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(dia, ultimo));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
+}
+
+function vaTotalAtual() {
+  const sub = vaItens.reduce((s, i) => s + i.preco * i.qtd, 0);
+  let desc = parseFloat(document.getElementById('va-desconto').value) || 0;
+  if (desc < 0) desc = 0;
+  if (desc > sub) desc = sub;
+  return sub - desc;
+}
+
+// Mostra/esconde o bloco conforme a forma de pagamento
+function vaTrocouPagamento() {
+  const boleto = document.getElementById('va-pag').value === 'Boleto';
+  document.getElementById('va-boleto-box').style.display = boleto ? '' : 'none';
+  if (boleto) {
+    const venc = document.getElementById('va-venc');
+    // Sugere o 1º vencimento no mês seguinte ao da venda — o mais comum
+    if (!venc.value) {
+      const d = new Date(document.getElementById('va-data').value + 'T12:00:00');
+      if (!isNaN(d)) {
+        d.setMonth(d.getMonth() + 1);
+        venc.value = d.toISOString().slice(0, 10);
+      }
+    }
+    vaMontarParcelas();
+  } else {
+    vaParcelas = [];
+  }
+  vaAtualizar();
+}
+
+function vaMontarParcelas() {
+  const sel = document.getElementById('va-parcelas');
+  if (!sel) return;
+  const total = vaTotalAtual();
+
+  // Opções com o valor de cada parcela já calculado
+  const escolhido = sel.value || '1';
+  sel.innerHTML = Array.from({ length: 24 }, (_, i) => {
+    const n = i + 1;
+    return `<option value="${n}"${String(n) === escolhido ? ' selected' : ''}>${n === 1 ? 'À vista' : n + 'x'} de ${fmt(total / n)}</option>`;
+  }).join('');
+
+  const n = Number(sel.value) || 1;
+  const inicio = document.getElementById('va-venc').value;
+  if (!inicio || total <= 0) { vaParcelas = []; renderVaParcelas(); return; }
+
+  const valores = vaDividir(total, n);
+  const datas = vaVencimentos(inicio, n);
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  // Mantém o que já foi marcado à mão; para as novas, o palpite é que
+  // parcela vencida já foi paga — é o caso normal ao lançar histórico.
+  const antes = new Map(vaParcelas.map(x => [x.n, x.paga]));
+  vaParcelas = valores.map((valor, i) => ({
+    n: i + 1, valor, vencimento: datas[i],
+    paga: antes.has(i + 1) ? antes.get(i + 1) : (datas[i] <= hoje)
+  }));
+  renderVaParcelas();
+}
+
+function vaTogglePaga(n) {
+  const p = vaParcelas.find(x => x.n === n);
+  if (p) { p.paga = !p.paga; renderVaParcelas(); }
+}
+
+function renderVaParcelas() {
+  const alvo = document.getElementById('va-lista-parcelas');
+  const resumo = document.getElementById('va-resumo-parc');
+  if (!alvo) return;
+
+  if (!vaParcelas.length) {
+    alvo.innerHTML = '<div class="pdv-vazio">Informe os itens e o vencimento da 1ª parcela.</div>';
+    resumo.textContent = '';
+    return;
+  }
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  alvo.innerHTML = vaParcelas.map(p => {
+    const atrasada = !p.paga && p.vencimento < hoje;
+    const cls = p.paga ? 'pt-pago' : (atrasada ? 'pt-atraso' : 'pt-prazo');
+    const txt = p.paga ? '✅ Paga' : (atrasada ? '⚠️ Vencida' : '⏳ A vencer');
+    return `
+    <div class="parc-li" style="border-top:1px solid var(--border)">
+      <span class="parc-n">${p.n}/${vaParcelas.length}</span>
+      <div class="parc-info"><div class="parc-venc">Vence ${dataBR(p.vencimento)}</div></div>
+      <span class="parc-val">${fmt(p.valor)}</span>
+      <button class="parc-tag ${cls}" style="border:none;cursor:pointer;font-family:inherit"
+              onclick="vaTogglePaga(${p.n})" title="Trocar entre paga e em aberto">${txt}</button>
+    </div>`;
+  }).join('');
+
+  const pagas = vaParcelas.filter(p => p.paga).length;
+  const falta = vaParcelas.filter(p => !p.paga).reduce((s, p) => s + p.valor, 0);
+  resumo.innerHTML = falta > 0
+    ? `${pagas} de ${vaParcelas.length} pagas · <strong>${fmt(falta)} a receber</strong> em ${vaParcelas.length - pagas} parcela(s).
+       As em aberto vão para o controle de parcelamentos.`
+    : `Todas as ${vaParcelas.length} parcelas marcadas como pagas — nada fica a receber.`;
 }
 
 /* ---------- Gravar ---------- */
@@ -5237,9 +5398,30 @@ async function salvarVendaAntiga(btn) {
       }
     }
 
+    // Parcelamento do histórico: pagas entram como recebidas, em aberto
+    // entram como "a gerar" — é o que faz elas aparecerem no controle de
+    // parcelamentos e no que a loja tem a receber.
+    const noBoleto = document.getElementById('va-pag').value === 'Boleto';
+    const cpfHist = (document.getElementById('va-cpf').value || '').replace(/\D/g, '');
+    let parcelamento = null;
+    if (noBoleto && vaParcelas.length) {
+      parcelamento = {
+        total: vaParcelas.length,
+        valorTotal: Math.round(total * 100) / 100,
+        criadoEm: data.toISOString(),
+        historico: true,
+        pagas: vaParcelas.filter(x => x.paga).length,
+        parcelas: vaParcelas.map(x => x.paga
+          ? { n: x.n, valor: x.valor, vencimento: x.vencimento, status: 'RECEIVED',
+              baixaManual: true, formaPagamento: 'Boleto (histórico)', pagoEm: x.vencimento }
+          : { n: x.n, valor: x.valor, vencimento: x.vencimento, status: 'a_gerar' })
+      };
+    }
+
     batch.set(db.collection('pedidos').doc(), {
       codigo,
       canal: 'historico',
+      ...(parcelamento ? { parcelamento } : {}),
       status,
       lancamentoManual: true,
       lancadoPor: usuario ? usuario.uid : null,
@@ -5250,7 +5432,7 @@ async function salvarVendaAntiga(btn) {
       cliente: {
         nome: (vaModo === 'cadastrado' && vaCliente) ? (vaCliente.nome || 'Cliente') : nomeAvulso,
         fone: (vaModo === 'cadastrado' && vaCliente) ? (vaCliente.telefone || '') : '',
-        cpfCnpj: (vaModo === 'cadastrado' && vaCliente) ? (vaCliente.cpfCnpj || '') : '',
+        cpfCnpj: cpfHist || ((vaModo === 'cadastrado' && vaCliente) ? (vaCliente.cpfCnpj || '') : ''),
         endereco: 'Venda anterior ao site'
       },
       obs: (document.getElementById('va-obs').value || '').trim() || 'Venda lançada manualmente',
@@ -5269,13 +5451,18 @@ async function salvarVendaAntiga(btn) {
 
     await batch.commit();
 
-    aviso(`Venda ${codigo} lançada em ${data.toLocaleDateString('pt-BR')}.`, false);
+    const aReceber = parcelamento
+      ? parcelamento.parcelas.filter(x => x.status === 'a_gerar').reduce((s, x) => s + x.valor, 0) : 0;
+    aviso(`Venda ${codigo} lançada em ${data.toLocaleDateString('pt-BR')}.` +
+          (aReceber > 0 ? ` ${fmt(aReceber)} entrou no controle de parcelamentos.` : ''), false);
     toast(`🕓 Venda ${codigo} lançada no histórico.`);
 
     // Mantém a data e o cliente para agilizar vários lançamentos seguidos
     vaItens = [];
+    vaParcelas = [];
     document.getElementById('va-desconto').value = 0;
     document.getElementById('va-obs').value = '';
+    renderVaParcelas();
     vaAtualizar();
   } catch (e) {
     console.error(e);
