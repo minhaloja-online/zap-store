@@ -1725,7 +1725,7 @@
           ⬇️ Baixar planilha modelo (com os produtos já cadastrados)
         </button>
         <div class="img-drop" onclick="document.getElementById('import-file').click()">
-          <span>📄 Clique para selecionar a planilha (.xlsx ou .csv)</span>
+          <span id="import-file-label">📄 Clique para selecionar a planilha (.xlsx ou .csv)</span>
         </div>
         <input type="file" id="import-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="lerPlanilhaImportacao(this)">
 
@@ -9020,13 +9020,19 @@ function lerPlanilhaImportacao(input) {
         };
       });
 
-      document.getElementById('import-file-label').textContent = '📄 ' + file.name;
+      const rotulo = document.getElementById('import-file-label');
+      if (rotulo) rotulo.textContent = '📄 ' + file.name;
       document.getElementById('import-fotos-box').style.display = 'block';
       renderPreviewImportacao();
       input.value = '';
     } catch (err) {
-      console.error(err);
-      toast('❌ Não foi possível ler o arquivo. Verifique o formato (.xlsx ou .csv).');
+      console.error('Falha ao importar planilha:', err);
+      // A mensagem genérica escondia falhas que não tinham nada a ver com o
+      // formato do arquivo — mostrar o motivo real poupa muito tempo.
+      const ehFormato = /zip|password|unsupported|Cannot read|corrupt/i.test(err?.message || '');
+      toast(ehFormato
+        ? '❌ Não foi possível ler o arquivo. Verifique o formato (.xlsx ou .csv).'
+        : '❌ Erro ao processar a planilha: ' + (err?.message || 'desconhecido'));
       input.value = '';
     }
   };
@@ -9191,7 +9197,8 @@ function cancelarImportacao() {
   document.getElementById('import-tbody').innerHTML = '';
   document.getElementById('import-file').value = '';
   document.getElementById('import-fotos').value = '';
-  document.getElementById('import-file-label').textContent = '📄 Clique para selecionar a planilha (.xlsx ou .csv)';
+  const rot = document.getElementById('import-file-label');
+  if (rot) rot.textContent = '📄 Clique para selecionar a planilha (.xlsx ou .csv)';
   document.getElementById('import-fotos-label').textContent = '🖼️ Clique para selecionar a pasta de imagens';
   document.getElementById('import-fotos-status').textContent = '';
   document.getElementById('import-progresso').style.display = 'none';
