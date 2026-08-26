@@ -3532,7 +3532,7 @@ function coletarPedido() {
       uf: cepDados?.uf || ''
     },
     obs,
-    itens: carrinho.map(i => ({ id: i.id, nome: i.nome, preco: precoItemCarrinho(i), qtd: i.qtd })),
+    itens: carrinho.map(i => ({ id: i.id, nome: i.nome, preco: precoItemCarrinho(i), qtd: i.qtd , custoUnit: custoAgora(i.id) })),
     total: carrinho.reduce((s, i) => s + precoItemCarrinho(i) * i.qtd, 0)
   };
 }
@@ -3786,7 +3786,7 @@ async function enviarPedido(btn) {
         uf: cepDados?.uf || ''
       },
       obs,
-      itens: carrinho.map(i => ({ id: i.id, nome: i.nome, preco: precoItemCarrinho(i), qtd: i.qtd })),
+      itens: carrinho.map(i => ({ id: i.id, nome: i.nome, preco: precoItemCarrinho(i), qtd: i.qtd , custoUnit: custoAgora(i.id) })),
       total,
       userId: usuario ? usuario.uid : null,
       userEmail: usuario ? (usuario.email || '') : '',
@@ -5471,7 +5471,7 @@ async function salvarVendaAntiga(btn) {
         endereco: 'Venda anterior ao site'
       },
       obs: (document.getElementById('va-obs').value || '').trim() || 'Venda lançada manualmente',
-      itens: vaItens.map(i => ({ id: i.id, nome: i.nome, preco: i.preco, qtd: i.qtd })),
+      itens: vaItens.map(i => ({ id: i.id, nome: i.nome, preco: i.preco, qtd: i.qtd , custoUnit: custoAgora(i.id) })),
       subtotal: Math.round(sub * 100) / 100,
       desconto: Math.round(desc * 100) / 100,
       total: Math.round(total * 100) / 100,
@@ -5742,7 +5742,7 @@ async function importarVendas(btn) {
           userEmail: '',
           cliente: { nome: v.cliente, fone: '', cpfCnpj: '', endereco: 'Venda anterior ao site' },
           obs: v.obs || 'Venda importada de planilha',
-          itens: v.itens.map(i => ({ id: i.id, nome: i.nome, preco: i.preco, qtd: i.qtd })),
+          itens: v.itens.map(i => ({ id: i.id, nome: i.nome, preco: i.preco, qtd: i.qtd , custoUnit: custoAgora(i.id) })),
           subtotal: Math.round(v.subtotal * 100) / 100,
           desconto: Math.round(v.desconto * 100) / 100,
           total: Math.round(v.total * 100) / 100,
@@ -6479,7 +6479,7 @@ async function vendFinalizar() {
 
   try {
     const codigo = gerarCodigo();
-    const itens = vendItens.map(i => ({ id: i.id, nome: i.nome, preco: vendPrecoItem(i), qtd: i.qtd }));
+    const itens = vendItens.map(i => ({ id: i.id, nome: i.nome, preco: vendPrecoItem(i), qtd: i.qtd , custoUnit: custoAgora(i.id) }));
     const base = {
       codigo,
       canal: 'vendedor',
@@ -6996,7 +6996,7 @@ function pdvAtualizar() {
 async function pdvFinalizarBoleto(codigo, cliente, cpfCnpj, sub, desc, total, btn) {
   const api = normalizarApi(config.api);
   const totalFalta = pdvItens.reduce((soma, i) => soma + pdvFaltando(i), 0);
-  const itens = pdvItens.map(i => ({ id: i.id, nome: i.nome, preco: pdvPrecoItem(i), qtd: i.qtd, encomendado: pdvFaltando(i) }));
+  const itens = pdvItens.map(i => ({ id: i.id, nome: i.nome, preco: pdvPrecoItem(i), qtd: i.qtd, encomendado: pdvFaltando(i) , custoUnit: custoAgora(i.id) }));
 
   const ref = await db.collection('pedidos').add({
     codigo,
@@ -7135,7 +7135,7 @@ async function pdvFinalizar() {
       unidadesEncomendadas: totalFalta,
       ...pdvDadosCliente(''),
       obs: 'Venda presencial no balcão' + (totalFalta ? ` — ${totalFalta} un. em encomenda` : ''),
-      itens: pdvItens.map(i => ({ id: i.id, nome: i.nome, preco: pdvPrecoItem(i), qtd: i.qtd, encomendado: pdvFaltando(i) })),
+      itens: pdvItens.map(i => ({ id: i.id, nome: i.nome, preco: pdvPrecoItem(i), qtd: i.qtd, encomendado: pdvFaltando(i) , custoUnit: custoAgora(i.id) })),
       subtotal: Math.round(sub * 100) / 100,
       desconto: Math.round(desc * 100) / 100,
       total: Math.round(total * 100) / 100,
@@ -7300,6 +7300,36 @@ const VENDIDOS = ['pendente_envio', 'enviado', 'parcelamento_aberto'];
 const ehVenda = p => VENDIDOS.includes(p.status);
 
 // Custo unitário do produto (0 quando o vendedor ainda não cadastrou)
+/*
+ * Custo de um item vendido.
+ *
+ * Procurar só pelo id do produto quebra em três situações comuns: produto
+ * recadastrado (id novo), produto excluído do catálogo, e item lançado à
+ * mão sem vínculo (venda antiga, produto fora do catálogo). Nesses casos o
+ * custo virava zero e o lucro aparecia igual ao faturamento.
+ *
+ * Ordem de busca: o custo congelado no próprio pedido, depois o id, e por
+ * último o nome — o mesmo critério usado na importação de planilha.
+ */
+// Custo do produto no momento da venda, para gravar dentro do pedido.
+// Sem isso, excluir ou recadastrar o produto apaga o lucro daquela venda.
+function custoAgora(id) {
+  const p = produtos.find(x => x.id === id);
+  return p ? (Number(p.custo) || 0) : 0;
+}
+
+function custoDoItem(item) {
+  if (!item) return 0;
+  // Vendas novas guardam o custo da época dentro do pedido: é o mais fiel,
+  // porque o preço de custo do produto pode ter mudado desde então.
+  if (item.custoUnit !== undefined && item.custoUnit !== null) return Number(item.custoUnit) || 0;
+
+  let p = item.id ? produtos.find(x => x.id === item.id) : null;
+  if (!p && item.nome) p = produtos.find(x => chaveNome(x.nome) === chaveNome(item.nome));
+  return p ? (Number(p.custo) || 0) : 0;
+}
+
+// Mantida para chamadas antigas que passam só o id
 function custoDe(id) {
   const p = produtos.find(x => x.id === id);
   return p ? (Number(p.custo) || 0) : 0;
@@ -7484,13 +7514,13 @@ function renderDashboard() {
 
   let custoTotal = 0, pecas = 0, semCusto = 0;
   noPeriodo.forEach(p => (p.itens || []).forEach(i => {
-    const c = custoDe(i.id);
+    const c = custoDoItem(i);
     if (!c) semCusto++;
     custoTotal += c * (Number(i.qtd) || 0);
     pecas += Number(i.qtd) || 0;
   }));
   let custoAnt = 0;
-  noAnterior.forEach(p => (p.itens || []).forEach(i => { custoAnt += custoDe(i.id) * (Number(i.qtd) || 0); }));
+  noAnterior.forEach(p => (p.itens || []).forEach(i => { custoAnt += custoDoItem(i) * (Number(i.qtd) || 0); }));
 
   const lucro = faturamento - custoTotal;
   const lucroAnt = faturamentoAnt - custoAnt;
@@ -7644,8 +7674,10 @@ function renderDashboard() {
 
   alvo.innerHTML = `
     ${semCusto ? `<div class="dash-aviso"><span>💡</span><div><strong>O lucro está incompleto.</strong>
-      Alguns produtos vendidos estão sem <strong>preço de custo</strong> cadastrado, então entram como custo zero e inflam o lucro.
-      Preencha o campo "Preço de custo" na aba Produtos → Cadastrar para o número ficar real.</div></div>` : ''}
+      ${semCusto} item(ns) vendido(s) ficaram sem <strong>preço de custo</strong>, então entram como custo zero e inflam o lucro.
+      Isso acontece quando o produto foi excluído do catálogo, ou quando o item foi lançado à mão sem estar cadastrado —
+      nesses casos não há de onde tirar o custo. Para produtos que ainda existem, basta preencher o
+      "Preço de custo" na aba Produtos.</div></div>` : ''}
 
     <div class="kpi-grid">
       <div class="kpi azul">
