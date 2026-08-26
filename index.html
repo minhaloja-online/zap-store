@@ -5524,10 +5524,11 @@ function vaAba(aba) {
 function baixarModeloVendas() {
   const hoje = new Date(Date.now() - 30 * 864e5).toLocaleDateString('pt-BR');
   const linhas = [
-    ['Venda', 'Data', 'Cliente', 'Pagamento', 'Produto', 'Qtd', 'Preço unitário', 'Desconto', 'Observações'],
-    [1, hoje, 'Maria Silva', 'Dinheiro', 'Garrafa Térmica Stanley 500 ml', 2, 49.9, 0, 'venda do caderno'],
-    [1, hoje, 'Maria Silva', 'Dinheiro', 'Copo Garrafa Stanley 900ml', 1, 59.9, '', ''],
-    [2, hoje, 'João Souza', 'Pix', 'Cabo 4 em 1 65W 1,2M', 3, 41.4, 5, '']
+    ['Venda', 'Data', 'Cliente', 'Pagamento', 'Produto', 'Qtd', 'Preço unitário', 'Custo unitário',
+     'Desconto', 'Parcelas', 'Parcelas pagas', '1º vencimento', 'Observações'],
+    [1, hoje, 'Maria Silva', 'Dinheiro', 'Garrafa Térmica Stanley 500 ml', 2, 49.9, 28, 0, '', '', '', 'venda do caderno'],
+    [1, hoje, 'Maria Silva', 'Dinheiro', 'Copo Garrafa Stanley 900ml', 1, 59.9, 32, '', '', '', '', ''],
+    [2, hoje, 'João Souza', 'Boleto', 'Cabo 4 em 1 65W 1,2M', 10, 41.4, 22, 0, 3, 1, hoje, 'parcelado em 3x']
   ];
   const ajuda = [
     ['COMO PREENCHER'],
@@ -5539,14 +5540,24 @@ function baixarModeloVendas() {
     ['Produto', 'Nome do produto. Se existir no catálogo, é vinculado automaticamente.'],
     ['Qtd', 'Quantidade vendida. Número inteiro maior que zero.'],
     ['Preço unitário', 'Preço praticado NA ÉPOCA, por unidade.'],
+    ['Custo unitário', 'Quanto o produto custou para a loja, por unidade. Opcional, mas sem ele o'],
+    ['', 'lucro do Dashboard fica inflado nessa venda. Se souber só o lucro total,'],
+    ['', 'use: custo unitário = (valor vendido − lucro) ÷ quantidade.'],
     ['Desconto', 'Desconto em reais da venda inteira. Preencha só na primeira linha da venda.'],
+    [],
+    ['PARCELAMENTO — preencha só na PRIMEIRA linha da venda, e só se foi parcelado:'],
+    ['Parcelas', 'Em quantas vezes foi dividido. Vazio ou 1 = à vista.'],
+    ['Parcelas pagas', 'Quantas o cliente já pagou. As demais entram no controle de parcelamentos.'],
+    ['1º vencimento', 'Data de vencimento da primeira parcela. Formato dd/mm/aaaa.'],
+    [],
     ['Observações', 'Opcional. Também só na primeira linha da venda.'],
     [],
     ['Não mude os nomes das colunas nem apague a primeira linha.']
   ];
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(linhas);
-  ws['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 24 }, { wch: 12 }, { wch: 42 }, { wch: 7 }, { wch: 14 }, { wch: 10 }, { wch: 26 }];
+  ws['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 24 }, { wch: 12 }, { wch: 42 }, { wch: 7 }, { wch: 14 },
+                 { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 26 }];
   XLSX.utils.book_append_sheet(wb, ws, 'Vendas');
   const wa = XLSX.utils.aoa_to_sheet(ajuda);
   wa['!cols'] = [{ wch: 16 }, { wch: 74 }];
@@ -5628,18 +5639,32 @@ async function lerPlanilhaVendas(input) {
       const id = ref + '|' + data.toISOString().slice(0, 10);
 
       if (!grupos.has(id)) {
+        // Parcelamento vem na primeira linha da venda: quantas vezes, quantas
+        // já foram pagas e quando vence a primeira.
+        const nParc = Math.trunc(vaNum(chave(l, 'Parcelas', 'Parcela', 'Qtd parcelas')));
+        const pagas = Math.trunc(vaNum(chave(l, 'Parcelas pagas', 'Pagas', 'Parcelas quitadas')));
+        const venc1 = vaLerData(chave(l, '1º vencimento', '1o vencimento', 'Primeiro vencimento', 'Vencimento'));
         grupos.set(id, {
           ref, data,
           cliente: String(chave(l, 'Cliente') || '').trim() || 'Cliente não informado',
           pagamento: String(chave(l, 'Pagamento') || '').trim() || 'Outro',
           desconto: vaNum(chave(l, 'Desconto')),
           obs: String(chave(l, 'Observações', 'Observacoes', 'Obs') || '').trim(),
+          parcelas: (nParc > 1 && nParc <= 60) ? nParc : 0,
+          parcelasPagas: Math.max(0, pagas),
+          primeiroVenc: venc1 || data,
           itens: []
         });
       }
       // Casa pelo nome com o catálogo, para o produto ficar vinculado
-      const cat = produtos.find(pp => (pp.nome || '').trim().toLowerCase() === produto.toLowerCase());
-      grupos.get(id).itens.push({ id: cat ? cat.id : null, nome: cat ? cat.nome : produto, preco, qtd });
+      const cat = produtos.find(pp => chaveNome(pp.nome) === chaveNome(produto));
+      // Custo da planilha tem prioridade: é o custo da época, não o de hoje
+      const custoCol = chave(l, 'Custo unitário', 'Custo unitario', 'Custo', 'Preço de custo');
+      const custoUnit = (custoCol !== '' && custoCol !== undefined)
+        ? vaNum(custoCol) : (cat ? (Number(cat.custo) || 0) : 0);
+      grupos.get(id).itens.push({
+        id: cat ? cat.id : null, nome: cat ? cat.nome : produto, preco, qtd, custoUnit
+      });
     });
 
     vaImportadas = [...grupos.values()].filter(v => v.itens.length);
@@ -5689,7 +5714,8 @@ function mostrarPreviaVendas(erros) {
         <span class="lote-nome">
           <strong>${v.data.toLocaleDateString('pt-BR')}</strong> · ${v.cliente}
           <small>${v.itens.map(i => `${i.qtd}x ${i.nome}${i.id ? '' : ' (fora do catálogo)'}`).join(' · ')}
-          ${v.desconto ? ` · desconto ${fmt(v.desconto)}` : ''} · ${v.pagamento}</small>
+          ${v.desconto ? ` · desconto ${fmt(v.desconto)}` : ''} · ${v.pagamento}
+          ${v.parcelas ? ` · <strong style="color:var(--alerta-txt)">${v.parcelas}x — ${v.parcelasPagas} paga(s), ${v.parcelas - v.parcelasPagas} a receber</strong>` : ''}</small>
         </span>
         <span class="lote-res" style="width:88px">${fmt(v.total)}</span>
       </div>`).join('')}`;
@@ -5710,7 +5736,7 @@ async function importarVendas(btn) {
   btn.disabled = true;
 
   try {
-    let feitas = 0;
+    let feitas = 0, aReceberTotal = 0;
     // O Firestore aceita no máximo 500 operações por lote: divide em blocos
     // para não estourar em importações grandes.
     const BLOCO = 100;
@@ -5729,10 +5755,31 @@ async function importarVendas(btn) {
               { estoque: Math.max((Number(prod.estoque) || 0) - i.qtd, 0) });
           }
         }
+        // Parcelamento: pagas entram como recebidas, o resto como "a gerar",
+        // que é o que faz aparecer no controle e somar no a receber.
+        let parcelamento = null;
+        if (v.parcelas > 1) {
+          const valores = vaDividir(v.total, v.parcelas);
+          const datas = vaVencimentos(
+            v.primeiroVenc.toISOString().slice(0, 10), v.parcelas);
+          parcelamento = {
+            total: v.parcelas,
+            valorTotal: Math.round(v.total * 100) / 100,
+            criadoEm: v.data.toISOString(),
+            historico: true,
+            pagas: Math.min(v.parcelasPagas, v.parcelas),
+            parcelas: valores.map((valor, i) => (i < v.parcelasPagas)
+              ? { n: i + 1, valor, vencimento: datas[i], status: 'RECEIVED',
+                  baixaManual: true, formaPagamento: 'Boleto (histórico)', pagoEm: datas[i] }
+              : { n: i + 1, valor, vencimento: datas[i], status: 'a_gerar' })
+          };
+        }
+
         batch.set(db.collection('pedidos').doc(), {
           codigo: gerarCodigo(),
           canal: 'historico',
           status: 'enviado',
+          ...(parcelamento ? { parcelamento } : {}),
           lancamentoManual: true,
           importado: true,
           lancadoPor: usuario ? usuario.uid : null,
@@ -5742,7 +5789,11 @@ async function importarVendas(btn) {
           userEmail: '',
           cliente: { nome: v.cliente, fone: '', cpfCnpj: '', endereco: 'Venda anterior ao site' },
           obs: v.obs || 'Venda importada de planilha',
-          itens: v.itens.map(i => ({ id: i.id, nome: i.nome, preco: i.preco, qtd: i.qtd , custoUnit: custoAgora(i.id) })),
+          itens: v.itens.map(i => ({
+            id: i.id, nome: i.nome, preco: i.preco, qtd: i.qtd,
+            // Custo da planilha; se não veio, o do catálogo hoje
+            custoUnit: (i.custoUnit !== undefined && i.custoUnit !== null) ? i.custoUnit : custoAgora(i.id)
+          })),
           subtotal: Math.round(v.subtotal * 100) / 100,
           desconto: Math.round(v.desconto * 100) / 100,
           total: Math.round(v.total * 100) / 100,
@@ -5750,6 +5801,10 @@ async function importarVendas(btn) {
           estoqueBaixado: baixar,
           criadoEm: carimbo, pagoEm: carimbo, aprovadoEm: carimbo
         });
+        if (parcelamento) {
+          aReceberTotal += parcelamento.parcelas
+            .filter(x => x.status === 'a_gerar').reduce((sm, x) => sm + x.valor, 0);
+        }
         feitas++;
       }
       await batch.commit();
@@ -5760,7 +5815,8 @@ async function importarVendas(btn) {
     document.getElementById('va-arquivo').value = '';
     document.getElementById('va-previa').innerHTML = '';
     msg.style.display = 'block'; msg.className = 'msg ok';
-    msg.textContent = `${feitas} venda(s) importada(s) para o histórico.`;
+    msg.textContent = `${feitas} venda(s) importada(s) para o histórico.` +
+      (aReceberTotal > 0 ? ` ${fmt(aReceberTotal)} entrou no controle de parcelamentos.` : '');
     toast(`🕓 ${feitas} venda(s) importada(s).`);
   } catch (e) {
     console.error(e);
