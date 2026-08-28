@@ -617,6 +617,15 @@
   .per-btn:hover { color: var(--marca-txt); }
   .per-btn.active { background:linear-gradient(100deg,var(--primary),var(--primary-light)); color:#fff; }
 
+  .dash-datas { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
+                background:var(--card); border:1px solid var(--border); border-radius:999px; padding:4px 10px; }
+  .dash-datas label { display:flex; align-items:center; gap:.4rem; font-size:.78rem;
+                      font-weight:700; color:var(--text-muted); margin:0; }
+  .dash-datas input { border:none; background:transparent; color:var(--text); font-family:inherit;
+                      font-size:.8rem; font-weight:600; padding:.3rem .2rem; }
+  .dash-datas input:focus { outline:none; }
+  @media (max-width:560px) { .dash-datas { width:100%; justify-content:space-between; border-radius:14px; } }
+
   .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:1rem; margin-bottom:1.2rem; }
   .kpi {
     position:relative; background:var(--card); border:1px solid var(--border); border-radius:16px;
@@ -1641,6 +1650,11 @@
             <button class="per-btn" data-per="90" onclick="mudarPeriodo(90)">90 dias</button>
             <button class="per-btn" data-per="365" onclick="mudarPeriodo(365)">12 meses</button>
             <button class="per-btn" data-per="0" onclick="mudarPeriodo(0)">Tudo</button>
+          </div>
+          <div class="dash-datas">
+            <label>De <input type="date" id="dash-de" onchange="periodoPersonalizado()"></label>
+            <label>Até <input type="date" id="dash-ate" onchange="periodoPersonalizado()"></label>
+            <button class="pdv-limpar" id="dash-limpar-datas" style="display:none" onclick="limparDatasDash()">✕ Limpar</button>
           </div>
           <button class="btn-clear" onclick="renderDashboard()">🔄 Atualizar</button>
           <button class="btn-clear" onclick="exportarDashboard()">⬇️ Exportar resumo</button>
@@ -7327,6 +7341,9 @@ async function pdvGerarPDF(dadosVenda) {
 
 /* ==================== DASHBOARD ==================== */
 let dashPeriodo = 30;  // dias; 0 = tudo
+// Intervalo escolhido nos campos De/Até. Quando existe, ele manda no lugar
+// dos atalhos de 7/30/90 dias.
+let dashDe = null, dashAte = null;
 let dashUltimo = null; // último cálculo, usado pela exportação
 
 const PALETA = ['#0d2b6b', '#2e9bff', '#1d4ec9', '#25d366', '#6b7a89', '#7FB2FF', '#1ebe5d', '#a3b4c6'];
@@ -7339,8 +7356,44 @@ const fmtCurto = v => {
 const pct = (a, b) => (!b ? (a > 0 ? 100 : 0) : ((a - b) / b) * 100);
 
 function mudarPeriodo(dias) {
+  // Clicar num atalho abandona o intervalo digitado: ter os dois valendo ao
+  // mesmo tempo deixaria o painel mostrando algo que ninguém pediu.
+  dashDe = dashAte = null;
+  document.getElementById('dash-de').value = '';
+  document.getElementById('dash-ate').value = '';
+  document.getElementById('dash-limpar-datas').style.display = 'none';
   dashPeriodo = dias;
   document.querySelectorAll('.per-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.per) === dias));
+  renderDashboard();
+}
+
+function periodoPersonalizado() {
+  const de = document.getElementById('dash-de').value;
+  const ate = document.getElementById('dash-ate').value;
+
+  if (!de && !ate) { limparDatasDash(); return; }
+
+  // Meio-dia evita que o fuso jogue a venda para o dia anterior
+  dashDe = de ? new Date(de + 'T00:00:00') : null;
+  dashAte = ate ? new Date(ate + 'T23:59:59') : null;
+
+  if (dashDe && dashAte && dashDe > dashAte) {
+    toast('⚠️ A data inicial é maior que a final.');
+    return;
+  }
+
+  // Nenhum atalho fica aceso enquanto o intervalo manual vale
+  document.querySelectorAll('.per-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('dash-limpar-datas').style.display = '';
+  renderDashboard();
+}
+
+function limparDatasDash() {
+  dashDe = dashAte = null;
+  document.getElementById('dash-de').value = '';
+  document.getElementById('dash-ate').value = '';
+  document.getElementById('dash-limpar-datas').style.display = 'none';
+  document.querySelectorAll('.per-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.per) === dashPeriodo));
   renderDashboard();
 }
 
@@ -7554,12 +7607,20 @@ function renderDashboard() {
   if (!alvo) return;
 
   const agora = new Date();
-  const inicio = dashPeriodo ? new Date(agora.getTime() - dashPeriodo * 864e5) : new Date(0);
-  const inicioAnterior = dashPeriodo ? new Date(inicio.getTime() - dashPeriodo * 864e5) : new Date(0);
+  // Intervalo digitado tem prioridade sobre os atalhos
+  const manual = !!(dashDe || dashAte);
+  const inicio = manual ? (dashDe || new Date(0))
+               : (dashPeriodo ? new Date(agora.getTime() - dashPeriodo * 864e5) : new Date(0));
+  const fim = manual ? (dashAte || agora) : agora;
+
+  // Período anterior de mesmo tamanho, para a comparação em % continuar
+  // fazendo sentido também no intervalo escolhido à mão.
+  const duracao = manual ? (fim.getTime() - inicio.getTime()) : (dashPeriodo * 864e5);
+  const inicioAnterior = duracao ? new Date(inicio.getTime() - duracao) : new Date(0);
 
   const vendas = pedidos.filter(ehVenda);
-  const noPeriodo = vendas.filter(p => { const d = dataVenda(p); return d && d >= inicio; });
-  const noAnterior = dashPeriodo
+  const noPeriodo = vendas.filter(p => { const d = dataVenda(p); return d && d >= inicio && d <= fim; });
+  const noAnterior = duracao
     ? vendas.filter(p => { const d = dataVenda(p); return d && d >= inicioAnterior && d < inicio; })
     : [];
 
@@ -7585,14 +7646,18 @@ function renderDashboard() {
   const ticketAnt = noAnterior.length ? faturamentoAnt / noAnterior.length : 0;
   const clientes = new Set(noPeriodo.map(p => (p.cliente?.fone || p.cliente?.nome || '').trim()).filter(Boolean));
 
-  const rotuloComp = dashPeriodo ? 'vs. período anterior' : 'no total';
+  const rotuloComp = duracao ? 'vs. período anterior' : 'no total';
 
   // ---- Série temporal (por dia até 90 dias; por mês acima disso)
-  const porMes = dashPeriodo === 0 || dashPeriodo > 90;
+  // O fim vai até 23:59, então arredondar para cima já cobre o dia inteiro:
+  // somar +1 contaria um dia a mais.
+  const diasNoPeriodo = manual ? Math.max(1, Math.ceil(duracao / 864e5)) : dashPeriodo;
+  const porMes = diasNoPeriodo === 0 || diasNoPeriodo > 90;
   const serie = new Map();
-  if (dashPeriodo && !porMes) {
-    for (let i = dashPeriodo - 1; i >= 0; i--) {
-      const d = new Date(agora.getTime() - i * 864e5);
+  if (diasNoPeriodo && !porMes) {
+    // Preenche todos os dias, para o gráfico mostrar os vazios também
+    for (let i = diasNoPeriodo - 1; i >= 0; i--) {
+      const d = new Date(fim.getTime() - i * 864e5);
       serie.set(d.toISOString().slice(0, 10), 0);
     }
   }
@@ -7714,7 +7779,9 @@ function renderDashboard() {
     .filter(p => (Number(p.estoque) || 0) > 0 && !vendidosNoPeriodo.has(p.id))
     .slice(0, 6);
 
-  const nomePeriodo = dashPeriodo ? `últimos ${dashPeriodo} dias` : 'todo o período';
+  const nomePeriodo = manual
+    ? `${inicio.toLocaleDateString('pt-BR')} a ${fim.toLocaleDateString('pt-BR')}`
+    : (dashPeriodo ? `últimos ${dashPeriodo} dias` : 'todo o período');
 
   // Guarda o que foi calculado para o botão "Exportar resumo" usar exatamente
   // os mesmos números que estão na tela.
