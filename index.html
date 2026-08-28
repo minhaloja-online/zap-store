@@ -1651,6 +1651,11 @@
             <button class="per-btn" data-per="365" onclick="mudarPeriodo(365)">12 meses</button>
             <button class="per-btn" data-per="0" onclick="mudarPeriodo(0)">Tudo</button>
           </div>
+          <div class="dash-periodo" id="dash-situacao">
+            <button class="per-btn active" data-sit="tudo" onclick="mudarSituacao('tudo')">Tudo</button>
+            <button class="per-btn" data-sit="pago" onclick="mudarSituacao('pago')">✅ Recebido</button>
+            <button class="per-btn" data-sit="aberto" onclick="mudarSituacao('aberto')">⏳ A receber</button>
+          </div>
           <div class="dash-datas">
             <label>De <input type="date" id="dash-de" onchange="periodoPersonalizado()"></label>
             <label>Até <input type="date" id="dash-ate" onchange="periodoPersonalizado()"></label>
@@ -2480,6 +2485,36 @@
 </div>
 
 <!-- ===== AVISO DE RETORNO DO PAGAMENTO ===== -->
+<!-- ===== Dar baixa em parcela ===== -->
+<div class="modal-bg" id="modal-baixa" onclick="if(event.target===this) fecharBaixa()">
+  <div class="modal" style="max-width:400px">
+    <button class="modal-close" onclick="fecharBaixa()">×</button>
+    <div style="padding:1.6rem">
+      <h3 style="color:var(--marca-txt); margin-bottom:.3rem">✔ Dar baixa</h3>
+      <p id="bx-sub" style="font-size:.83rem; color:var(--text-muted); margin-bottom:1.1rem"></p>
+
+      <div class="field">
+        <label>Data em que o cliente pagou *</label>
+        <input type="date" id="bx-data">
+        <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">
+          É esta data que o Dashboard usa para contar o faturamento.
+        </p>
+      </div>
+      <div class="field">
+        <label>Como pagou</label>
+        <select id="bx-forma">
+          <option>Dinheiro</option><option>Pix</option><option>Débito</option>
+          <option>Crédito</option><option>Transferência</option><option>Outro</option>
+        </select>
+      </div>
+
+      <p id="bx-msg" class="msg" style="display:none"></p>
+      <button class="btn-block btn-pdf" onclick="confirmarBaixa(this)">Confirmar baixa</button>
+      <button class="btn-block btn-ghost" onclick="fecharBaixa()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== Lançar venda anterior (histórico) ===== -->
 <div class="modal-bg" id="modal-venda-antiga" onclick="if(event.target===this) fecharVendaAntiga()">
   <div class="modal" style="max-width:680px">
@@ -7344,6 +7379,8 @@ let dashPeriodo = 30;  // dias; 0 = tudo
 // Intervalo escolhido nos campos De/Até. Quando existe, ele manda no lugar
 // dos atalhos de 7/30/90 dias.
 let dashDe = null, dashAte = null;
+// 'tudo' | 'pago' | 'aberto' — recorta o faturamento por situação do dinheiro
+let dashSituacao = 'tudo';
 let dashUltimo = null; // último cálculo, usado pela exportação
 
 const PALETA = ['#0d2b6b', '#2e9bff', '#1d4ec9', '#25d366', '#6b7a89', '#7FB2FF', '#1ebe5d', '#a3b4c6'];
@@ -7354,6 +7391,13 @@ const fmtCurto = v => {
   return fmt(n);
 };
 const pct = (a, b) => (!b ? (a > 0 ? 100 : 0) : ((a - b) / b) * 100);
+
+function mudarSituacao(sit) {
+  dashSituacao = sit;
+  document.querySelectorAll('#dash-situacao .per-btn')
+    .forEach(b => b.classList.toggle('active', b.dataset.sit === sit));
+  renderDashboard();
+}
 
 function mudarPeriodo(dias) {
   // Clicar num atalho abandona o intervalo digitado: ter os dois valendo ao
@@ -7395,6 +7439,59 @@ function limparDatasDash() {
   document.getElementById('dash-limpar-datas').style.display = 'none';
   document.querySelectorAll('.per-btn').forEach(b => b.classList.toggle('active', Number(b.dataset.per) === dashPeriodo));
   renderDashboard();
+}
+
+/* ==================== RECEBIMENTOS ====================
+ * O Dashboard passou a olhar QUANDO O DINHEIRO ENTRA, não quando a venda foi
+ * fechada. Faz diferença no parcelado: uma venda de R$ 1.000 em 5x não é
+ * R$ 1.000 num mês só, e sim R$ 200 por mês.
+ *
+ * Cada pedido vira um ou mais eventos:
+ *   - sem parcelamento -> um evento, na data da venda
+ *   - parcelado        -> um evento por parcela
+ *        paga    -> conta na DATA DO PAGAMENTO
+ *        aberta  -> conta na DATA DE VENCIMENTO (é previsão)
+ *
+ * O custo entra proporcional ao valor de cada parcela, para a margem
+ * continuar coerente em qualquer recorte.
+ */
+function eventosRecebimento(lista) {
+  const eventos = [];
+
+  lista.forEach(p => {
+    const custoPedido = (p.itens || []).reduce((sm, i) => sm + custoDoItem(i) * (Number(i.qtd) || 0), 0);
+    const totalPedido = Number(p.total) || 0;
+    const plano = p.parcelamento;
+
+    if (!plano || !(plano.parcelas || []).length) {
+      const d = dataVenda(p);
+      if (d) eventos.push({ pedido: p, data: d, valor: totalPedido, custo: custoPedido, pago: true, primeiro: true });
+      return;
+    }
+
+    plano.parcelas.forEach((par, idx) => {
+      if (par.status === 'CANCELADO') return;   // cancelada não é receita nem previsão
+      const paga = par.status === 'CONFIRMED' || par.status === 'RECEIVED';
+      const valor = Number(par.valor) || 0;
+
+      // Paga: vale a data do pagamento. Aberta: o vencimento, como previsão.
+      let d = null;
+      if (paga && par.pagoEm) d = new Date(par.pagoEm.length === 10 ? par.pagoEm + 'T12:00:00' : par.pagoEm);
+      if ((!d || isNaN(d)) && par.vencimento) d = new Date(par.vencimento + 'T12:00:00');
+      if (!d || isNaN(d)) d = dataVenda(p);
+      if (!d) return;
+
+      const fatia = totalPedido > 0 ? (valor / totalPedido) : 0;
+      eventos.push({
+        pedido: p, data: d, valor, custo: custoPedido * fatia, pago: paga,
+        // Só a primeira parcela carrega os itens, senão a contagem de
+        // unidades vendidas seria multiplicada pelo número de parcelas.
+        primeiro: idx === 0, parcela: par
+      });
+    });
+  });
+
+  return eventos;
 }
 
 // Data em que a venda de fato aconteceu
@@ -7619,25 +7716,31 @@ function renderDashboard() {
   const inicioAnterior = duracao ? new Date(inicio.getTime() - duracao) : new Date(0);
 
   const vendas = pedidos.filter(ehVenda);
-  const noPeriodo = vendas.filter(p => { const d = dataVenda(p); return d && d >= inicio && d <= fim; });
-  const noAnterior = duracao
-    ? vendas.filter(p => { const d = dataVenda(p); return d && d >= inicioAnterior && d < inicio; })
+
+  // Situação escolhida no filtro: recebido, a receber, ou os dois
+  const cabeSituacao = ev => dashSituacao === 'tudo' || (dashSituacao === 'pago' ? ev.pago : !ev.pago);
+  const todosEventos = eventosRecebimento(vendas).filter(cabeSituacao);
+
+  const eventos = todosEventos.filter(ev => ev.data >= inicio && ev.data <= fim);
+  const eventosAnt = duracao
+    ? todosEventos.filter(ev => ev.data >= inicioAnterior && ev.data < inicio)
     : [];
 
-  // ---- Faturamento, lucro, itens
-  const somaTotal = lista => lista.reduce((s, p) => s + (Number(p.total) || 0), 0);
-  const faturamento = somaTotal(noPeriodo);
-  const faturamentoAnt = somaTotal(noAnterior);
+  // ---- Faturamento e lucro vêm dos recebimentos
+  const faturamento = eventos.reduce((s, ev) => s + ev.valor, 0);
+  const faturamentoAnt = eventosAnt.reduce((s, ev) => s + ev.valor, 0);
+  const custoTotal = eventos.reduce((s, ev) => s + ev.custo, 0);
+  const custoAnt = eventosAnt.reduce((s, ev) => s + ev.custo, 0);
 
-  let custoTotal = 0, pecas = 0, semCusto = 0;
-  noPeriodo.forEach(p => (p.itens || []).forEach(i => {
-    const c = custoDoItem(i);
-    if (!c) semCusto++;
-    custoTotal += c * (Number(i.qtd) || 0);
+  // Pedidos e itens contam uma vez só, mesmo com várias parcelas no período
+  const noPeriodo = [...new Set(eventos.map(ev => ev.pedido))];
+  const noAnterior = [...new Set(eventosAnt.map(ev => ev.pedido))];
+
+  let pecas = 0, semCusto = 0;
+  eventos.filter(ev => ev.primeiro).forEach(ev => (ev.pedido.itens || []).forEach(i => {
+    if (!custoDoItem(i)) semCusto++;
     pecas += Number(i.qtd) || 0;
   }));
-  let custoAnt = 0;
-  noAnterior.forEach(p => (p.itens || []).forEach(i => { custoAnt += custoDoItem(i) * (Number(i.qtd) || 0); }));
 
   const lucro = faturamento - custoTotal;
   const lucroAnt = faturamentoAnt - custoAnt;
@@ -7661,10 +7764,9 @@ function renderDashboard() {
       serie.set(d.toISOString().slice(0, 10), 0);
     }
   }
-  noPeriodo.forEach(p => {
-    const d = dataVenda(p); if (!d) return;
-    const chave = porMes ? d.toISOString().slice(0, 7) : d.toISOString().slice(0, 10);
-    serie.set(chave, (serie.get(chave) || 0) + (Number(p.total) || 0));
+  eventos.forEach(ev => {
+    const chave = porMes ? ev.data.toISOString().slice(0, 7) : ev.data.toISOString().slice(0, 10);
+    serie.set(chave, (serie.get(chave) || 0) + ev.valor);
   });
   const MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   const pontos = [...serie.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, v]) => ({
@@ -7675,9 +7777,36 @@ function renderDashboard() {
   // ---- Rankings
   const porProduto = {}, porCategoria = {}, porPagamento = {}, porCliente = {}, porCanal = {};
   const porDia = [0, 0, 0, 0, 0, 0, 0];
+
+  // Valor, forma de pagamento e canal seguem o RECEBIMENTO: assim os gráficos
+  // somam o mesmo faturamento mostrado nos indicadores.
+  eventos.forEach(ev => {
+    const p = ev.pedido;
+    porDia[ev.data.getDay()] += ev.valor;
+
+    const met = p.pagamento?.metodo;
+    const nomeMet = ev.parcela ? 'Boleto parcelado'
+                  : met === 'PIX' ? 'Pix (online)' : met === 'CREDIT_CARD' ? 'Cartão (online)'
+                  : met === 'BOLETO' ? 'Boleto' : met ? met : (p.origem === 'asaas' ? 'Online' : 'WhatsApp');
+    porPagamento[nomeMet] = (porPagamento[nomeMet] || 0) + ev.valor;
+
+    const canal = p.canal === 'loja' ? '🏪 Venda na loja'
+                : p.canal === 'vendedor' ? '🧑‍💼 Vendedor externo'
+                : p.canal === 'historico' ? '🕓 Antes do site'
+                : '🌐 Pelo site';
+    porCanal[canal] = (porCanal[canal] || 0) + ev.valor;
+
+    const cli = (p.cliente?.nome || '').trim();
+    if (cli) {
+      if (!porCliente[cli]) porCliente[cli] = { valor: 0, n: 0 };
+      porCliente[cli].valor += ev.valor;
+      if (ev.primeiro) porCliente[cli].n++;   // conta o pedido, não cada parcela
+    }
+  });
+
+  // Ranking de produto usa a VENDA, não a parcela: o item foi vendido uma vez,
+  // ainda que o pagamento venha dividido em cinco meses.
   noPeriodo.forEach(p => {
-    const d = dataVenda(p);
-    if (d) porDia[d.getDay()] += Number(p.total) || 0;
     (p.itens || []).forEach(i => {
       const v = (Number(i.preco) || 0) * (Number(i.qtd) || 0);
       const prod = produtos.find(x => x.id === i.id);
@@ -7687,22 +7816,6 @@ function renderDashboard() {
       const cat = prod?.categoria || 'Sem categoria';
       porCategoria[cat] = (porCategoria[cat] || 0) + v;
     });
-    // Como pagaram: no balcão o método vem escrito; no site vem da Asaas
-    const met = p.pagamento?.metodo;
-    const nomeMet = met === 'PIX' ? 'Pix (online)' : met === 'CREDIT_CARD' ? 'Cartão (online)'
-                  : met === 'BOLETO' ? 'Boleto' : met ? met : (p.origem === 'asaas' ? 'Online' : 'WhatsApp');
-    porPagamento[nomeMet] = (porPagamento[nomeMet] || 0) + (Number(p.total) || 0);
-    // De onde vem a venda: balcão, vendedor externo ou o próprio site
-    const canal = p.canal === 'loja' ? '🏪 Venda na loja'
-                : p.canal === 'vendedor' ? '🧑‍💼 Vendedor externo'
-                : p.canal === 'historico' ? '🕓 Antes do site'
-                : '🌐 Pelo site';
-    porCanal[canal] = (porCanal[canal] || 0) + (Number(p.total) || 0);
-    const cli = (p.cliente?.nome || '').trim();
-    if (cli) {
-      if (!porCliente[cli]) porCliente[cli] = { valor: 0, n: 0 };
-      porCliente[cli].valor += Number(p.total) || 0; porCliente[cli].n++;
-    }
   });
 
   const DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -7782,6 +7895,8 @@ function renderDashboard() {
   const nomePeriodo = manual
     ? `${inicio.toLocaleDateString('pt-BR')} a ${fim.toLocaleDateString('pt-BR')}`
     : (dashPeriodo ? `últimos ${dashPeriodo} dias` : 'todo o período');
+  const rotuloSit = dashSituacao === 'pago' ? ' · só recebido'
+                  : dashSituacao === 'aberto' ? ' · só a receber' : '';
 
   // Guarda o que foi calculado para o botão "Exportar resumo" usar exatamente
   // os mesmos números que estão na tela.
@@ -7804,7 +7919,7 @@ function renderDashboard() {
 
     <div class="kpi-grid">
       <div class="kpi azul">
-        <div class="kpi-top"><span class="kpi-lbl">Faturamento</span><span class="kpi-ico">💰</span></div>
+        <div class="kpi-top"><span class="kpi-lbl">Faturamento${rotuloSit}</span><span class="kpi-ico">💰</span></div>
         <div class="kpi-val">${fmt(faturamento)}</div>
         <div class="kpi-sub">${badgeDelta(pct(faturamento, faturamentoAnt), rotuloComp)}</div>
       </div>
@@ -8333,20 +8448,50 @@ async function baixaManual(corpo, btn, mensagemOk) {
   }
 }
 
-async function quitarParcela(pedidoId, n, btn) {
-  const forma = prompt('Como o cliente pagou esta parcela?\n(dinheiro, Pix, cartão...)', 'Dinheiro');
-  if (forma === null) return;
-  await baixaManual({ pedidoId, n, forma }, btn, `✅ Parcela ${n} quitada.`);
+// Guarda o que está sendo quitado enquanto o modal está aberto
+let baixaAlvo = null;
+
+function abrirBaixa(pedidoId, n, btn, tudo) {
+  const p = pedidos.find(x => x.id === pedidoId);
+  const valor = tudo ? (p ? saldoParcelamento(p.parcelamento) : 0)
+                     : (p?.parcelamento?.parcelas || []).find(x => x.n === n)?.valor || 0;
+  baixaAlvo = { pedidoId, n, tudo, btn };
+
+  document.getElementById('bx-sub').innerHTML = tudo
+    ? `Quitar <strong>todas as parcelas em aberto</strong> de ${p?.codigo || ''} — ${fmt(valor)}.<br>
+       Os boletos ainda não pagos serão cancelados na Asaas.`
+    : `Parcela <strong>${n}</strong> de ${p?.codigo || ''} — ${fmt(valor)}.`;
+  document.getElementById('bx-data').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('bx-msg').style.display = 'none';
+  document.getElementById('modal-baixa').classList.add('open');
 }
 
-async function quitarParcelamento(pedidoId, btn) {
-  const p = pedidos.find(x => x.id === pedidoId);
-  const falta = p ? saldoParcelamento(p.parcelamento) : 0;
-  if (!confirm(`Quitar TODAS as parcelas em aberto?\n\nValor: ${fmt(falta)}\n\nOs boletos ainda não pagos serão cancelados na Asaas.`)) return;
-  const forma = prompt('Como o cliente pagou?', 'Dinheiro');
-  if (forma === null) return;
-  await baixaManual({ pedidoId, tudo: true, forma }, btn, '✅ Parcelamento quitado.');
+function fecharBaixa() {
+  document.getElementById('modal-baixa').classList.remove('open');
+  baixaAlvo = null;
 }
+
+async function confirmarBaixa(btnModal) {
+  if (!baixaAlvo) return;
+  const dataPagamento = document.getElementById('bx-data').value;
+  const msg = document.getElementById('bx-msg');
+  if (!dataPagamento) {
+    msg.style.display = 'block'; msg.className = 'msg err';
+    msg.textContent = 'Informe a data do pagamento.';
+    return;
+  }
+  const forma = document.getElementById('bx-forma').value;
+  const { pedidoId, n, tudo, btn } = baixaAlvo;
+  fecharBaixa();
+  await baixaManual(
+    tudo ? { pedidoId, tudo: true, forma, dataPagamento } : { pedidoId, n, forma, dataPagamento },
+    btn,
+    tudo ? '✅ Parcelamento quitado.' : `✅ Parcela ${n} quitada.`
+  );
+}
+
+function quitarParcela(pedidoId, n, btn) { abrirBaixa(pedidoId, n, btn, false); }
+function quitarParcelamento(pedidoId, btn) { abrirBaixa(pedidoId, null, btn, true); }
 
 /* ---------- Vendedor: gerar o boleto de uma parcela ---------- */
 async function gerarParcela(pedidoId, n, btn) {
