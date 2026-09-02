@@ -7759,7 +7759,7 @@ function exportarDetalhamento() {
       // Consolidado por produto, para ver o que dá mais lucro no total
       const nome = i.nome || 'Produto removido';
       if (!porProduto[nome]) porProduto[nome] = { qtd: 0, custo: 0, venda: 0 };
-      porProduto[nome].qtd += qtd * fatia;
+      porProduto[nome].qtd += qtd * peso;
       porProduto[nome].custo += custo;
       porProduto[nome].venda += venda;
     });
