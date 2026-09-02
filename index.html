@@ -1663,6 +1663,8 @@
           </div>
           <button class="btn-clear" onclick="renderDashboard()">🔄 Atualizar</button>
           <button class="btn-clear" onclick="exportarDashboard()">⬇️ Exportar resumo</button>
+          <button class="btn-clear" style="background:var(--accent); color:#fff; border-color:var(--accent);"
+                  onclick="exportarDetalhamento()">📊 Detalhamento</button>
         </div>
         <div id="dash-conteudo"></div>
       </div>
@@ -7698,6 +7700,140 @@ function exportarDashboard() {
   toast('📊 Resumo exportado!');
 }
 
+
+/* ---------- Detalhamento em Excel ----------
+ * Uma linha por produto vendido, com custo, venda e lucro. Sai exatamente o
+ * que está filtrado na tela: mesmo período e mesma situação (recebido, a
+ * receber ou tudo).
+ *
+ * O valor de cada linha respeita o recebimento: numa venda parcelada, se só
+ * uma das cinco parcelas caiu no período, o item entra com um quinto do
+ * valor. Sem isso o detalhamento não fecharia com o faturamento do painel.
+ */
+function exportarDetalhamento() {
+  if (!dashUltimo || !dashUltimo.eventos) return toast('⚠️ Abra o Dashboard antes de exportar.');
+  const { eventos, periodo, situacao } = dashUltimo;
+  if (!eventos.length) return toast('⚠️ Nada no período e filtro escolhidos.');
+
+  const rotuloSit = situacao === 'pago' ? 'Somente recebido'
+                  : situacao === 'aberto' ? 'Somente a receber' : 'Recebido e a receber';
+
+  const linhas = [];
+  const porProduto = {};
+
+  eventos.forEach(ev => {
+    const p = ev.pedido;
+    const itens = p.itens || [];
+    // Repartir o recebido pelo PESO de cada item, e não por preço × quantidade,
+    // é o que faz a soma das linhas bater exatamente com o faturamento: preço
+    // vezes quantidade não fecha com o total quando há desconto ou centavo de
+    // arredondamento no meio.
+    const soma = itens.reduce((sm, i) => sm + (Number(i.preco) || 0) * (Number(i.qtd) || 0), 0);
+
+    itens.forEach(i => {
+      const qtd = Number(i.qtd) || 0;
+      const precoUn = Number(i.preco) || 0;
+      const custoUn = custoDoItem(i);
+      const peso = soma > 0 ? (precoUn * qtd) / soma : (1 / (itens.length || 1));
+      const venda = ev.valor * peso;
+      // O custo acompanha a mesma proporção do valor vendido
+      const custo = soma > 0 ? custoUn * qtd * (venda / (precoUn * qtd || 1)) : 0;
+
+      linhas.push([
+        ev.data.toLocaleDateString('pt-BR'),
+        p.codigo || '',
+        p.cliente?.nome || '',
+        i.nome || 'Produto removido',
+        (produtos.find(x => x.id === i.id)?.categoria) || '',
+        qtd,
+        custoUn || '',
+        precoUn,
+        Math.round(custo * 100) / 100,
+        Math.round(venda * 100) / 100,
+        Math.round((venda - custo) * 100) / 100,
+        venda > 0 ? Math.round((venda - custo) / venda * 1000) / 10 : '',
+        ev.parcela ? `${ev.parcela.n}/${p.parcelamento.total}` : 'À vista',
+        ev.pago ? 'Recebido' : 'A receber'
+      ]);
+
+      // Consolidado por produto, para ver o que dá mais lucro no total
+      const nome = i.nome || 'Produto removido';
+      if (!porProduto[nome]) porProduto[nome] = { qtd: 0, custo: 0, venda: 0 };
+      porProduto[nome].qtd += qtd * fatia;
+      porProduto[nome].custo += custo;
+      porProduto[nome].venda += venda;
+    });
+  });
+
+  const somaVenda = linhas.reduce((s, l) => s + l[9], 0);
+  const somaCusto = linhas.reduce((s, l) => s + l[8], 0);
+
+  const wb = XLSX.utils.book_new();
+
+  // --- Aba 1: item a item ---
+  const aba1 = [
+    ['Data', 'Pedido', 'Cliente', 'Produto', 'Categoria', 'Qtd',
+     'Custo un.', 'Venda un.', 'Custo total', 'Venda total', 'Lucro', 'Margem %',
+     'Parcela', 'Situação'],
+    ...linhas,
+    [],
+    ['', '', '', 'TOTAL', '', '', '', '',
+     Math.round(somaCusto * 100) / 100,
+     Math.round(somaVenda * 100) / 100,
+     Math.round((somaVenda - somaCusto) * 100) / 100,
+     somaVenda > 0 ? Math.round((somaVenda - somaCusto) / somaVenda * 1000) / 10 : '']
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(aba1);
+  ws1['!cols'] = [{ wch: 11 }, { wch: 17 }, { wch: 24 }, { wch: 44 }, { wch: 16 }, { wch: 7 },
+                  { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 12 }, { wch: 11 }, { wch: 10 },
+                  { wch: 9 }, { wch: 11 }];
+  ws1['!freeze'] = { xSplit: 0, ySplit: 1 };
+  XLSX.utils.book_append_sheet(wb, ws1, 'Itens');
+
+  // --- Aba 2: consolidado por produto ---
+  const cons = Object.entries(porProduto)
+    .map(([nome, v]) => [
+      nome,
+      Math.round(v.qtd * 100) / 100,
+      Math.round(v.custo * 100) / 100,
+      Math.round(v.venda * 100) / 100,
+      Math.round((v.venda - v.custo) * 100) / 100,
+      v.venda > 0 ? Math.round((v.venda - v.custo) / v.venda * 1000) / 10 : ''
+    ])
+    .sort((a, b) => b[4] - a[4]);   // do que mais lucra para o que menos lucra
+
+  const ws2 = XLSX.utils.aoa_to_sheet([
+    ['Produto', 'Qtd', 'Custo total', 'Venda total', 'Lucro', 'Margem %'],
+    ...cons
+  ]);
+  ws2['!cols'] = [{ wch: 46 }, { wch: 9 }, { wch: 13 }, { wch: 13 }, { wch: 12 }, { wch: 10 }];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Por produto');
+
+  // --- Aba 3: o que foi filtrado ---
+  const ws3 = XLSX.utils.aoa_to_sheet([
+    [(config.nome || 'Zap Store') + ' — Detalhamento de vendas'],
+    [],
+    ['Período', periodo],
+    ['Situação', rotuloSit],
+    ['Gerado em', new Date().toLocaleString('pt-BR')],
+    [],
+    ['Linhas de item', linhas.length],
+    ['Venda total', Math.round(somaVenda * 100) / 100],
+    ['Custo total', Math.round(somaCusto * 100) / 100],
+    ['Lucro', Math.round((somaVenda - somaCusto) * 100) / 100],
+    ['Margem %', somaVenda > 0 ? Math.round((somaVenda - somaCusto) / somaVenda * 1000) / 10 : ''],
+    [],
+    ['Em vendas parceladas, o valor de cada item é proporcional às parcelas'],
+    ['que caem no período — por isso a soma fecha com o faturamento do painel.'],
+    dashUltimo.semCusto ? ['ATENÇÃO: ' + dashUltimo.semCusto + ' item(ns) sem preço de custo — o lucro está superestimado.'] : []
+  ]);
+  ws3['!cols'] = [{ wch: 20 }, { wch: 58 }];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Filtro');
+
+  XLSX.writeFile(wb, 'detalhamento-vendas-' + new Date().toISOString().slice(0, 10) + '.xlsx');
+  toast(`📊 Detalhamento com ${linhas.length} linha(s) exportado!`);
+}
+
 /* ---------- Montagem do painel ---------- */
 function renderDashboard() {
   const alvo = document.getElementById('dash-conteudo');
@@ -7907,7 +8043,9 @@ function renderDashboard() {
     pontos, topProdutos, topQtd, catFatias, pagFatias, topClientes,
     diaSerie, esgotados, baixos,
     aReceber, parcAtrasadas, valorAtrasado, parcAGerar, proximas, previsao,
-    qtdParcelamentos: emParcelamento.length
+    qtdParcelamentos: emParcelamento.length,
+    // Guardado para o detalhamento sair exatamente com o que está na tela
+    eventos, situacao: dashSituacao, inicio, fim, custoTotal, semCusto
   };
 
   alvo.innerHTML = `
