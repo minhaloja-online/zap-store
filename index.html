@@ -617,6 +617,16 @@
   .per-btn:hover { color: var(--marca-txt); }
   .per-btn.active { background:linear-gradient(100deg,var(--primary),var(--primary-light)); color:#fff; }
 
+  /* Os dois botões de Excel andam juntos e não se separam ao quebrar linha */
+  .dash-exports { display:flex; gap:.5rem; flex-wrap:nowrap; }
+  .btn-excel {
+    display:inline-flex; align-items:center; gap:.4rem; white-space:nowrap;
+    background:var(--accent); color:#fff; border:1px solid var(--accent);
+    font-family:inherit; font-weight:700; font-size:.84rem;
+    padding:.5rem 1rem; border-radius:9px; cursor:pointer; transition:.2s;
+  }
+  .btn-excel:hover { filter:brightness(1.07); transform:translateY(-1px); }
+
   .dash-datas { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap;
                 background:var(--card); border:1px solid var(--border); border-radius:999px; padding:4px 10px; }
   .dash-datas label { display:flex; align-items:center; gap:.4rem; font-size:.78rem;
@@ -1662,9 +1672,10 @@
             <button class="pdv-limpar" id="dash-limpar-datas" style="display:none" onclick="limparDatasDash()">✕ Limpar</button>
           </div>
           <button class="btn-clear" onclick="renderDashboard()">🔄 Atualizar</button>
-          <button class="btn-clear" onclick="exportarDashboard()">⬇️ Exportar resumo</button>
-          <button class="btn-clear" style="background:var(--accent); color:#fff; border-color:var(--accent);"
-                  onclick="exportarDetalhamento()">📊 Detalhamento</button>
+          <div class="dash-exports">
+            <button class="btn-excel" onclick="exportarDashboard()">📊 Resumo</button>
+            <button class="btn-excel" onclick="exportarDetalhamento()">📊 Detalhamento</button>
+          </div>
         </div>
         <div id="dash-conteudo"></div>
       </div>
