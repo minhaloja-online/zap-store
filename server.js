@@ -219,11 +219,26 @@ app.post('/api/criar-preferencia', async (req, res) => {
 
     total = Math.round(total * 100) / 100;
 
-    // Se o total do banco não bater com o recalculado, grava o correto e segue
-    if (Math.abs(total - Number(pedido.total || 0)) > 0.01) {
-      console.warn(`Total divergente no pedido ${pedido.codigo}: gravado ${pedido.total}, correto ${total}`);
-      await refPedido.update({ total, itens: itens.map(i => ({ id: i.id, nome: i.title, preco: i.unit_price, qtd: i.quantity })) });
+    // O desconto dado na venda não vem do catálogo: é uma decisão do vendedor,
+    // gravada no pedido. Precisa ser reaplicado depois de recalcular os preços,
+    // senão a conferência apagava o desconto e o cliente recebia a cobrança
+    // pelo valor cheio.
+    const desconto = Math.max(0, Math.min(Number(pedido.desconto || 0), total));
+    const totalComDesconto = Math.round((total - desconto) * 100) / 100;
+    if (!(totalComDesconto > 0)) {
+      return res.status(400).json({ erro: 'O desconto zerou o valor do pedido.' });
     }
+
+    if (Math.abs(totalComDesconto - Number(pedido.total || 0)) > 0.01) {
+      console.warn(`Total divergente no pedido ${pedido.codigo}: gravado ${pedido.total}, correto ${totalComDesconto} (desconto ${desconto})`);
+      await refPedido.update({
+        total: totalComDesconto,
+        subtotal: total,
+        desconto,
+        itens: itens.map(i => ({ id: i.id, nome: i.title, preco: i.unit_price, qtd: i.quantity }))
+      });
+    }
+    total = totalComDesconto;
 
     // Se já existe uma cobrança em aberto para este pedido, reaproveita o
     // mesmo link em vez de gerar outra cobrança na Asaas a cada tentativa.
@@ -578,7 +593,7 @@ app.post('/api/cancelar-parcela', async (req, res) => {
  */
 app.post('/api/quitar-parcela', async (req, res) => {
   try {
-    const { pedidoId, n, tudo, token, forma } = req.body;
+    const { pedidoId, n, tudo, token, forma, dataPagamento } = req.body;
     await exigirVendedor(token);
 
     const refPedido = db.collection('pedidos').doc(pedidoId);
@@ -613,12 +628,18 @@ app.post('/api/quitar-parcela', async (req, res) => {
         }
       }
 
+      // A data informada pelo vendedor manda: é ela que o Dashboard usa para
+      // saber em que dia o dinheiro entrou. Sem informar, vale hoje.
+      const quando = /^\d{4}-\d{2}-\d{2}$/.test(dataPagamento || '')
+        ? new Date(dataPagamento + 'T12:00:00').toISOString()
+        : new Date().toISOString();
+
       parcelas[idx] = {
         ...parcelas[idx],
         status: 'RECEIVED',
         baixaManual: true,
         formaPagamento: forma || 'Recebido por fora',
-        pagoEm: new Date().toISOString()
+        pagoEm: quando
       };
     }
 

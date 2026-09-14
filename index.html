@@ -8311,11 +8311,11 @@ function htmlConfigBoleto(pref) {
       <div class="cfg-bol-linha">
         <div class="field" style="margin-bottom:0">
           <label>Multa por atraso</label>
-          <input type="number" id="${pref}-multa" min="0" step="0.01" value="2" oninput="resumoBoleto('${pref}')">
+          <input type="number" id="${pref}-bol-multa" min="0" step="0.01" value="2" oninput="resumoBoleto('${pref}')">
         </div>
         <div class="field" style="margin-bottom:0">
           <label>Tipo</label>
-          <select id="${pref}-multa-tipo" onchange="resumoBoleto('${pref}')">
+          <select id="${pref}-bol-multa-tipo" onchange="resumoBoleto('${pref}')">
             <option value="PERCENTAGE">%</option>
             <option value="FIXED">R$</option>
           </select>
@@ -8324,18 +8324,18 @@ function htmlConfigBoleto(pref) {
 
       <div class="field" style="margin-bottom:.6rem">
         <label>Juros ao mês (%)</label>
-        <input type="number" id="${pref}-juros" min="0" max="10" step="0.01" value="1" oninput="resumoBoleto('${pref}')">
+        <input type="number" id="${pref}-bol-juros" min="0" max="10" step="0.01" value="1" oninput="resumoBoleto('${pref}')">
         <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">Cobrado proporcional aos dias de atraso.</p>
       </div>
 
       <div class="cfg-bol-linha">
         <div class="field" style="margin-bottom:0">
           <label>Desconto antecipado</label>
-          <input type="number" id="${pref}-desconto" min="0" step="0.01" value="0" oninput="resumoBoleto('${pref}')">
+          <input type="number" id="${pref}-bol-desconto" min="0" step="0.01" value="0" oninput="resumoBoleto('${pref}')">
         </div>
         <div class="field" style="margin-bottom:0">
           <label>Tipo</label>
-          <select id="${pref}-desconto-tipo" onchange="resumoBoleto('${pref}')">
+          <select id="${pref}-bol-desconto-tipo" onchange="resumoBoleto('${pref}')">
             <option value="PERCENTAGE">%</option>
             <option value="FIXED">R$</option>
           </select>
@@ -8343,18 +8343,18 @@ function htmlConfigBoleto(pref) {
       </div>
       <div class="field" style="margin:.6rem 0 0">
         <label>Desconto vale até quantos dias antes do vencimento</label>
-        <input type="number" id="${pref}-desconto-dias" min="0" max="60" step="1" value="0" oninput="resumoBoleto('${pref}')">
+        <input type="number" id="${pref}-bol-desconto-dias" min="0" max="60" step="1" value="0" oninput="resumoBoleto('${pref}')">
         <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">0 = vale até o dia do vencimento.</p>
       </div>
 
-      <p id="${pref}-resumo" class="cfg-bol-resumo"></p>
+      <p id="${pref}-bol-resumo" class="cfg-bol-resumo"></p>
     </div>
   </details>`;
 }
 
 // Lê os campos e devolve no formato que o servidor espera
 function lerConfigBoleto(pref) {
-  const v = id => document.getElementById(pref + '-' + id)?.value;
+  const v = id => document.getElementById(pref + '-bol-' + id)?.value;
   return {
     multa: Number(v('multa')) || 0,
     multaTipo: v('multa-tipo') || 'PERCENTAGE',
@@ -8367,7 +8367,7 @@ function lerConfigBoleto(pref) {
 
 // Mostra em texto o que o cliente vai ver no boleto, para conferência
 function resumoBoleto(pref) {
-  const el = document.getElementById(pref + '-resumo');
+  const el = document.getElementById(pref + '-bol-resumo');
   if (!el) return;
   const c = lerConfigBoleto(pref);
   const como = (val, tipo) => tipo === 'FIXED' ? fmt(val) : val.toString().replace('.', ',') + '%';
