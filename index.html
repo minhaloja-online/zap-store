@@ -218,13 +218,11 @@
     font-size: .88rem; cursor: pointer; color: var(--text); font-family: inherit; display: flex; gap: .55rem; align-items: center;
   }
   .user-menu button:hover { background: #f2f6fb; }
-  /* Áreas internas: no computador o acesso é pela lateral, então só aparecem
-     no celular, onde a lateral fica escondida. "sem-acesso" esconde sempre. */
-  .user-menu .um-area { display: none; border-top: 1px solid var(--border); }
+  /* Áreas internas no menu da foto: valem em qualquer tamanho de tela.
+     "sem-acesso" é quem esconde, conforme o papel da pessoa. */
+  .user-menu .um-area { display: flex; border-top: 1px solid var(--border); }
   .user-menu .um-area + .um-area { border-top: none; }
-  @media (max-width: 900px) {
-    .user-menu .um-area:not(.sem-acesso) { display: flex; }
-  }
+  .user-menu .um-area.sem-acesso { display: none; }
 
   /* ===== SHELL: sidebar + conteúdo ===== */
   .app-shell { display: block; padding-top: var(--topbar-h); }
@@ -8685,6 +8683,9 @@ function renderPedidos() {
       : (p.status === 'pendente_envio' || p.status === 'parcelamento_aberto')
         ? `<button class="mini-btn mini-edit" onclick="marcarEnviado('${p.id}')">🚚 Marcar como enviado</button>
            <button class="mini-btn mini-del" onclick="cancelarPedido('${p.id}')">✕ Cancelar</button>`
+      // Devolução acontece: mercadoria já enviada pode voltar
+      : p.status === 'enviado'
+        ? `<button class="mini-btn mini-del" onclick="cancelarPedido('${p.id}')">✕ Cancelar</button>`
       : '';
     return `
     <div class="pedido-card">
@@ -8756,13 +8757,34 @@ async function aprovarPedido(id) {
 }
 
 // Devolve ao estoque os itens de um pedido cancelado
+/*
+ * Devolve ao estoque o que saiu de fato.
+ *
+ * Unidade vendida como ENCOMENDA nunca esteve na prateleira — o cliente pediu
+ * e a loja ia repor. Devolver essa unidade criaria estoque do nada. Por isso
+ * volta só a parte que existia: quantidade menos o que ficou encomendado.
+ */
 async function devolverEstoque(ped) {
   const batch = db.batch();
+  let devolvidas = 0;
   for (const item of (ped.itens || [])) {
     const prod = produtos.find(p => p.id === item.id);
-    if (prod) batch.update(db.collection('produtos').doc(item.id), { estoque: (prod.estoque || 0) + item.qtd });
+    if (!prod) continue;   // produto excluído do catálogo: não há onde devolver
+    const qtd = Math.max(0, (Number(item.qtd) || 0) - (Number(item.encomendado) || 0));
+    if (!qtd) continue;
+    batch.update(db.collection('produtos').doc(item.id), { estoque: (Number(prod.estoque) || 0) + qtd });
+    batch.set(db.collection('estoque_mov').doc(), {
+      produtoId: item.id, produtoNome: item.nome || prod.nome,
+      antes: Number(prod.estoque) || 0, depois: (Number(prod.estoque) || 0) + qtd, diferenca: qtd,
+      motivo: 'devolução — pedido ' + (ped.codigo || '') + ' cancelado',
+      usuarioId: usuario ? usuario.uid : null,
+      usuarioNome: (perfil?.nome) || (usuario?.email) || '',
+      criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    devolvidas += qtd;
   }
-  await batch.commit();
+  if (devolvidas) await batch.commit();
+  return devolvidas;
 }
 
 async function cancelarPedido(id) {
@@ -8770,12 +8792,19 @@ async function cancelarPedido(id) {
   if (!ped) return;
   // No parcelamento o estoque sai na 1ª parcela paga, então cancelar também
   // precisa devolver — senão a mercadoria some do controle.
-  const devolve = ped.status === 'pendente_envio' || (ped.status === 'parcelamento_aberto' && ped.estoqueBaixado);
+  // Em qualquer estado depois da aprovação a mercadoria já saiu do estoque
+  const devolve = ped.status === 'pendente_envio' || ped.status === 'enviado' ||
+                  (ped.status === 'parcelamento_aberto' && ped.estoqueBaixado);
+  const unidadesVolta = devolve
+    ? (ped.itens || []).reduce((s, i) => s + Math.max(0, (Number(i.qtd) || 0) - (Number(i.encomendado) || 0)), 0)
+    : 0;
   const emAberto = ped.parcelamento
     ? (ped.parcelamento.parcelas || []).filter(x => !parcelaPaga(x) && x.status !== 'a_gerar').length
     : 0;
   const aviso = 'Cancelar o pedido ' + ped.codigo + '?' +
-    (devolve ? '\n\nO estoque dos itens será devolvido.' : '') +
+    (ped.status === 'enviado' ? '\n\nEste pedido já foi enviado — confirme que a mercadoria voltou.' : '') +
+    (unidadesVolta ? `\n\n${unidadesVolta} unidade(s) voltam para o estoque.` : '') +
+    (devolve && !unidadesVolta ? '\n\nNada volta ao estoque: os itens foram vendidos como encomenda.' : '') +
     (emAberto ? `\n\n${emAberto} boleto(s) em aberto serão cancelados na Asaas automaticamente.` : '');
   if (!confirm(aviso)) return;
 
