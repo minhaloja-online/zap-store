@@ -1748,8 +1748,9 @@
       <div class="panel" style="margin-bottom:1.2rem;">
         <h3>📥 Importar Produtos em Massa</h3>
         <p style="font-size:.85rem; color:var(--text-muted); margin-bottom:1rem;">
-          Envie uma planilha (.xlsx ou .csv) com os produtos. Colunas aceitas: <code>nome</code>, <code>descricao</code>, <code>preco</code>, <code>precoAtacado</code>, <code>custo</code>, <code>estoque</code>, <code>categoria</code>.<br>
-          Baixe o modelo abaixo para partir do que já existe — ele vem com os produtos atuais preenchidos.
+          Envie uma planilha (.xlsx ou .csv) com os produtos. Colunas aceitas: <code>nome</code>, <code>descricao</code>, <code>preco</code>, <code>precoAtacado</code>, <code>custo</code>, <code>entrada</code>, <code>categoria</code>.<br>
+          Baixe o modelo abaixo para partir do que já existe — ele vem com os produtos atuais e o estoque de hoje preenchidos.
+          Na coluna <code>entrada</code>, digite só o que está chegando: o valor é somado ao estoque.
         </p>
         <button class="btn-clear" style="width:100%; margin-bottom:.9rem" onclick="baixarModeloProdutos()">
           ⬇️ Baixar planilha modelo (com os produtos já cadastrados)
@@ -9479,7 +9480,7 @@ const ALIAS_COLUNAS = {
   preco: ['preco', 'preço', 'valor', 'preco varejo', 'preço varejo', 'varejo'],
   precoAtacado: ['precoatacado', 'preço atacado', 'preco atacado', 'atacado'],
   custo: ['custo', 'preco de custo', 'preço de custo', 'precocusto', 'preço custo', 'preco custo'],
-  estoque: ['estoque', 'qtd', 'quantidade', 'estoque atual'],
+  estoque: ['entrada', 'entrada de estoque', 'estoque', 'qtd', 'quantidade'],
   categoria: ['categoria', 'categoria do produto']
 };
 
@@ -9496,7 +9497,9 @@ function normalizarChave(s) {
  * uma base pronta para digitar produtos novos no mesmo padrão.
  */
 function baixarModeloProdutos() {
-  const COLS = ['nome', 'descricao', 'categoria', 'custo', 'preco', 'precoAtacado', 'estoque'];
+  // "estoque hoje" é só para consulta: nenhum sinônimo da importação bate
+  // com esse nome, então ele é ignorado ao reenviar a planilha.
+  const COLS = ['nome', 'descricao', 'categoria', 'custo', 'preco', 'precoAtacado', 'estoque hoje', 'entrada'];
 
   const atuais = [...produtos].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   const linhas = [
@@ -9508,7 +9511,8 @@ function baixarModeloProdutos() {
       Number(p.custo) || '',
       Number(p.preco) || '',
       (p.precoAtacado !== undefined && p.precoAtacado !== null) ? Number(p.precoAtacado) : '',
-      ''   // em branco: preencha só a quantidade que está CHEGANDO
+      Number(p.estoque) || 0,   // quanto tem hoje — só para você conferir
+      ''                        // entrada: preencha só o que está CHEGANDO
     ])
   ];
   // Duas linhas vazias no fim para digitar produto novo sem apagar nada
@@ -9522,8 +9526,9 @@ function baixarModeloProdutos() {
     [],
     ['Produtos são reconhecidos pelo NOME. Se o nome já existe no catálogo, a linha NÃO cria'],
     ['um produto novo: o estoque digitado é SOMADO ao que já tem, e os preços são atualizados.'],
-    ['Por isso, na coluna estoque preencha só o que ESTÁ CHEGANDO agora, não o total.'],
-    ['Deixe a linha com estoque vazio se você só quer corrigir preço ou descrição.'],
+    ['A coluna "estoque hoje" mostra quanto tem agora e é IGNORADA ao importar — serve só para conferir.'],
+    ['Na coluna "entrada" preencha só o que ESTÁ CHEGANDO. Ex.: tem 5 hoje e chegaram 10 → digite 10.'],
+    ['Deixe "entrada" vazia se você só quer corrigir preço ou descrição.'],
     [],
     ['COLUNA', 'O QUE PREENCHER'],
     ['nome', 'Nome do produto. Obrigatório.'],
@@ -9532,7 +9537,8 @@ function baixarModeloProdutos() {
     ['custo', 'Quanto você pagou por unidade. Não aparece para o cliente — serve para o Dashboard calcular o lucro.'],
     ['preco', 'Preço de varejo. Obrigatório.'],
     ['precoAtacado', 'Preço quando o carrinho tem 3 itens ou mais. Precisa ser menor que o varejo. Deixe vazio se não trabalha com atacado.'],
-    ['estoque', 'Quantidade disponível. Vem em branco de propósito: preencha com o que tem hoje.'],
+    ['estoque hoje', 'Quantidade em estoque no momento em que a planilha foi baixada. Só leitura.'],
+    ['entrada', 'Quantidade que está chegando. É SOMADA ao estoque do produto.'],
     [],
     ['Valores podem ser digitados com vírgula (49,90) ou ponto (49.90).'],
     ['Não mude os nomes das colunas nem apague a primeira linha.']
@@ -9540,7 +9546,7 @@ function baixarModeloProdutos() {
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(linhas);
-  ws['!cols'] = [{ wch: 46 }, { wch: 52 }, { wch: 18 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 10 }];
+  ws['!cols'] = [{ wch: 46 }, { wch: 52 }, { wch: 18 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 13 }, { wch: 10 }];
   XLSX.utils.book_append_sheet(wb, ws, 'Produtos');
 
   const wa = XLSX.utils.aoa_to_sheet(ajuda);
