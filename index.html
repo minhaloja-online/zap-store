@@ -2252,6 +2252,7 @@
         </div>
 
         <button class="btn-block btn-pdf" id="vend-finalizar" onclick="vendFinalizar()" disabled>Fechar pedido</button>
+        <button class="btn-block btn-ghost" id="vend-pdf" onclick="vendGerarPDF()" disabled>📄 Baixar orçamento em PDF</button>
         <button class="btn-block btn-ghost" onclick="vendLimpar()">Cancelar pedido</button>
       </div>
     </div>
@@ -6529,6 +6530,9 @@ function vendAtualizar() {
 
   // No modo cadastrado é preciso escolher alguém; no avulso, não
   const semCliente = vendModo === 'cadastrado' && !vendCliente;
+  // Orçamento não exige cliente: o vendedor pode mandar antes de fechar
+  const btnPdf = document.getElementById('vend-pdf');
+  if (btnPdf) btnPdf.disabled = !(nItens > 0);
   const btn = document.getElementById('vend-finalizar');
   btn.disabled = !(nItens > 0) || semCliente;
   btn.textContent = semCliente ? 'Escolha o cliente primeiro'
@@ -6565,6 +6569,120 @@ function vendLimpar() {
   vendPagamento('Dinheiro');
   vendBuscar();
   vendAtualizar();
+}
+
+/* ---------- Orçamento em PDF ----------
+ * O vendedor monta a lista na frente do cliente e manda o PDF antes de fechar
+ * — para ele pensar, comparar ou mostrar a quem decide. Nada é gravado: é só
+ * um retrato do que está na tela agora.
+ */
+async function vendGerarPDF() {
+  if (!vendItens.length) return toast('⚠️ Adicione produtos para gerar o orçamento.');
+  toast('⏳ Gerando orçamento...');
+
+  const sub = vendSubtotal();
+  let desc = parseFloat(document.getElementById('vend-desconto').value) || 0;
+  if (desc < 0) desc = 0;
+  if (desc > sub) desc = sub;
+  const total = sub - desc;
+  const itens = vendItens.map(i => ({ ...i, unit: vendPrecoItem(i) }));
+
+  // Cliente: o cadastrado, o nome digitado no avulso, ou em branco
+  const nomeCli = (vendModo === 'cadastrado' && vendCliente)
+    ? (vendCliente.nome || '')
+    : (document.getElementById('vend-cli-nome')?.value || '').trim();
+  const endereco = (document.getElementById('vend-endereco')?.value || '').trim();
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  cabecalhoPDF(doc, 'Orçamento');
+
+  const hoje = new Date();
+  const validade = new Date(hoje.getTime() + 7 * 864e5);
+
+  doc.setFontSize(13).setFont(undefined, 'bold').setTextColor(40);
+  doc.text('Orçamento', 14, 40);
+  doc.setFontSize(9.5).setFont(undefined, 'normal').setTextColor(90);
+  doc.text('Emitido em ' + hoje.toLocaleDateString('pt-BR'), 14, 46);
+  // Validade curta protege o vendedor de honrar preço antigo meses depois
+  doc.text('Válido até ' + validade.toLocaleDateString('pt-BR'), 196, 46, { align: 'right' });
+  doc.setDrawColor(225).line(14, 51, 196, 51);
+
+  let y = 59;
+  if (nomeCli || endereco) {
+    doc.setTextColor(40).setFontSize(10.5).setFont(undefined, 'bold');
+    doc.text('Cliente', 14, y);
+    doc.setFont(undefined, 'normal').setFontSize(9.5);
+    if (nomeCli) { y += 7; doc.text(nomeCli, 14, y); }
+    if (endereco) { y += 6; doc.text(endereco, 14, y); }
+    y += 10;
+  }
+
+  const imgSize = 14;
+  const fotos = await fotosDosItens(itens);
+  doc.autoTable({
+    startY: y,
+    head: [['', 'Produto', 'Qtd', 'Preço un.', 'Subtotal']],
+    body: itens.map(i => ['', i.nome, i.qtd, fmt(i.unit), fmt(i.unit * i.qtd)]),
+    headStyles: { fillColor: [13, 43, 107], fontSize: 9.5 },
+    bodyStyles: { fontSize: 9.5, minCellHeight: 18, valign: 'middle' },
+    columnStyles: {
+      0: { cellWidth: imgSize + 6 },
+      2: { halign: 'center', cellWidth: 16 },
+      3: { halign: 'right', cellWidth: 28 },
+      4: { halign: 'right', cellWidth: 28 }
+    },
+    didDrawCell: d => {
+      if (d.section !== 'body' || d.column.index !== 0) return;
+      const img = fotos[d.row.index];
+      if (!img) return;
+      try { doc.addImage(img, 'JPEG', d.cell.x + 3, d.cell.y + (d.cell.height - imgSize) / 2, imgSize, imgSize); } catch (e) {}
+    }
+  });
+
+  let fy = doc.lastAutoTable.finalY + 10;
+  const linha = (rot, val, negrito) => {
+    doc.setFont(undefined, negrito ? 'bold' : 'normal').setFontSize(negrito ? 12 : 10);
+    doc.setTextColor(negrito ? 20 : 90);
+    doc.text(rot, 130, fy);
+    doc.text(val, 196, fy, { align: 'right' });
+    fy += negrito ? 9 : 6;
+  };
+  linha('Subtotal', fmt(sub));
+  if (desc > 0) linha('Desconto', '- ' + fmt(desc));
+  linha('TOTAL', fmt(total), true);
+
+  // Se o vendedor já escolheu boleto, o cliente vê como ficam as parcelas
+  if (vendFormaPag === 'Boleto') {
+    const n = Number(document.getElementById('vend-parcelas')?.value) || 1;
+    fy += 2;
+    doc.setFontSize(9.5).setFont(undefined, 'normal').setTextColor(70);
+    doc.text(n > 1 ? `Condição: boleto em ${n}x de ${fmt(total / n)}` : 'Condição: boleto à vista', 14, fy);
+    fy += 6;
+  } else if (vendFormaPag) {
+    fy += 2;
+    doc.setFontSize(9.5).setFont(undefined, 'normal').setTextColor(70);
+    doc.text('Forma de pagamento: ' + vendFormaPag, 14, fy);
+    fy += 6;
+  }
+
+  const obs = (document.getElementById('vend-obs')?.value || '').trim();
+  if (obs) {
+    fy += 2;
+    doc.setFontSize(9).setTextColor(90);
+    doc.text('Observações: ' + obs, 14, fy, { maxWidth: 182 });
+  }
+
+  doc.setFontSize(8.5).setTextColor(130).setFont(undefined, 'normal');
+  doc.text('Preços sujeitos à disponibilidade de estoque. Documento sem valor fiscal.',
+           14, doc.internal.pageSize.height - 14);
+  doc.text('Gerado em ' + hoje.toLocaleString('pt-BR') + ' — ' + (config.nome || 'Zap Store'),
+           14, doc.internal.pageSize.height - 8);
+
+  const arq = 'orcamento-' + (nomeCli ? nomeCli.split(' ')[0].toLowerCase() + '-' : '') +
+              hoje.toISOString().slice(0, 10) + '.pdf';
+  doc.save(arq.normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+  toast('📄 Orçamento gerado!');
 }
 
 /* ---------- Fechar o pedido ---------- */
