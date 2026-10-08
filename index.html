@@ -975,6 +975,17 @@
   .cfg-bol-resumo { font-size:.76rem; color:var(--text-muted); background:var(--card); border-radius:8px;
                     padding:.55rem .7rem; margin-top:.8rem; line-height:1.5; }
 
+  /* Vencimento personalizado: uma data por parcela */
+  .bol-datas { border:1px solid var(--border); border-radius:10px; background:var(--surf-2);
+               padding:.6rem .8rem; margin-bottom:.8rem; }
+  .bol-datas-rotulo { display:block; font-size:.78rem; font-weight:700; color:var(--marca-txt); margin-bottom:.4rem; }
+  .bol-data-li { display:grid; grid-template-columns:44px 1fr; align-items:center; gap:.5rem; margin-bottom:.4rem; }
+  .bol-data-li:last-child { margin-bottom:0; }
+  .bol-data-li span { font-size:.8rem; font-weight:700; color:var(--text-muted); }
+  .bol-data-li input { width:100%; }
+  .bol-aviso { font-size:.78rem; font-weight:700; color:#b42318; background:#fde8e6; border-radius:8px;
+               padding:.5rem .7rem; line-height:1.5; }
+
   .pdv-cli-modo { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
 
   /* Autocomplete de clientes na Área do Vendedor */
@@ -1748,9 +1759,8 @@
       <div class="panel" style="margin-bottom:1.2rem;">
         <h3>📥 Importar Produtos em Massa</h3>
         <p style="font-size:.85rem; color:var(--text-muted); margin-bottom:1rem;">
-          Envie uma planilha (.xlsx ou .csv) com os produtos. Colunas aceitas: <code>nome</code>, <code>descricao</code>, <code>preco</code>, <code>precoAtacado</code>, <code>custo</code>, <code>entrada</code>, <code>categoria</code>.<br>
-          Baixe o modelo abaixo para partir do que já existe — ele vem com os produtos atuais e o estoque de hoje preenchidos.
-          Na coluna <code>entrada</code>, digite só o que está chegando: o valor é somado ao estoque.
+          Envie uma planilha (.xlsx ou .csv) com os produtos. Colunas aceitas: <code>nome</code>, <code>descricao</code>, <code>preco</code>, <code>precoAtacado</code>, <code>custo</code>, <code>estoque</code>, <code>categoria</code>.<br>
+          Baixe o modelo abaixo para partir do que já existe — ele vem com os produtos atuais preenchidos.
         </p>
         <button class="btn-clear" style="width:100%; margin-bottom:.9rem" onclick="baixarModeloProdutos()">
           ⬇️ Baixar planilha modelo (com os produtos já cadastrados)
@@ -2245,9 +2255,19 @@
             <select id="vend-parcelas" onchange="vendAtualizar()"></select>
           </div>
           <div class="field">
+            <label>Vencimento das parcelas</label>
+            <select id="vend-intervalo" onchange="bolTrocouIntervalo('vend')">
+              <option value="30">A cada 30 dias</option>
+              <option value="20">A cada 20 dias</option>
+              <option value="10">A cada 10 dias</option>
+              <option value="custom">Personalizado — eu digito cada data</option>
+            </select>
+          </div>
+          <div class="field" id="vend-venc-box">
             <label>Vencimento da 1ª parcela</label>
             <input type="date" id="vend-venc" onchange="vendAtualizar()">
           </div>
+          <div id="vend-venc-lista" class="bol-datas" style="display:none"></div>
           <div id="vend-previa" style="margin-bottom:.6rem"></div>
           <div id="vend-cfg"></div>
         </div>
@@ -2346,9 +2366,19 @@
             <select id="pdv-parcelas" onchange="pdvAtualizar()"></select>
           </div>
           <div class="field">
+            <label>Vencimento das parcelas</label>
+            <select id="pdv-intervalo" onchange="bolTrocouIntervalo('pdv')">
+              <option value="30">A cada 30 dias</option>
+              <option value="20">A cada 20 dias</option>
+              <option value="10">A cada 10 dias</option>
+              <option value="custom">Personalizado — eu digito cada data</option>
+            </select>
+          </div>
+          <div class="field" id="pdv-venc-box">
             <label>Vencimento da 1ª parcela</label>
             <input type="date" id="pdv-venc" onchange="pdvAtualizar()">
           </div>
+          <div id="pdv-venc-lista" class="bol-datas" style="display:none"></div>
           <div id="pdv-previa" style="margin-bottom:.6rem"></div>
           <div id="pdv-cfg"></div>
         </div>
@@ -2528,6 +2558,29 @@
   </div>
 </div>
 
+<!-- ===== Gerar o boleto de uma parcela (com a data de vencimento) ===== -->
+<div class="modal-bg" id="modal-gerar-parcela" onclick="if(event.target===this) fecharGerarParcela()">
+  <div class="modal" style="max-width:400px">
+    <button class="modal-close" onclick="fecharGerarParcela()">×</button>
+    <div style="padding:1.6rem">
+      <h3 style="color:var(--marca-txt); margin-bottom:.3rem">📄 Gerar boleto</h3>
+      <p id="gp-sub" style="font-size:.83rem; color:var(--text-muted); margin-bottom:1.1rem"></p>
+
+      <div class="field">
+        <label>Data de vencimento do boleto *</label>
+        <input type="date" id="gp-venc">
+        <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">
+          Já vem com a data prevista da parcela. Pode mudar se quiser — não dá para usar uma data que já passou.
+        </p>
+      </div>
+
+      <p id="gp-msg" class="msg" style="display:none"></p>
+      <button class="btn-block btn-pdf" onclick="confirmarGerarParcela(this)">Gerar boleto</button>
+      <button class="btn-block btn-ghost" onclick="fecharGerarParcela()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== Lançar venda anterior (histórico) ===== -->
 <div class="modal-bg" id="modal-venda-antiga" onclick="if(event.target===this) fecharVendaAntiga()">
   <div class="modal" style="max-width:680px">
@@ -2633,10 +2686,20 @@
             <select id="va-parcelas" onchange="vaMontarParcelas()"></select>
           </div>
           <div class="field" style="margin-bottom:0">
-            <label>Vencimento da 1ª</label>
-            <input type="date" id="va-venc" onchange="vaMontarParcelas()">
+            <label>Vencimento das parcelas</label>
+            <select id="va-intervalo" onchange="bolTrocouIntervalo('va')">
+              <option value="30">A cada 30 dias</option>
+              <option value="20">A cada 20 dias</option>
+              <option value="10">A cada 10 dias</option>
+              <option value="custom">Personalizado — eu digito cada data</option>
+            </select>
           </div>
         </div>
+        <div class="field" id="va-venc-box" style="margin-bottom:.7rem">
+          <label>Vencimento da 1ª parcela</label>
+          <input type="date" id="va-venc" onchange="vaMontarParcelas()">
+        </div>
+        <div id="va-venc-lista" class="bol-datas" style="display:none"></div>
         <div class="field" style="margin-bottom:.7rem">
           <label>CPF / CNPJ do cliente</label>
           <input type="text" id="va-cpf" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)">
@@ -2771,9 +2834,19 @@
         <select id="mparc-qtd" onchange="atualizarPreviaParcelas()"></select>
       </div>
       <div class="field">
+        <label>Vencimento das parcelas</label>
+        <select id="mparc-intervalo" onchange="bolTrocouIntervalo('mparc')">
+          <option value="30">A cada 30 dias</option>
+          <option value="20">A cada 20 dias</option>
+          <option value="10">A cada 10 dias</option>
+          <option value="custom">Personalizado — eu digito cada data</option>
+        </select>
+      </div>
+      <div class="field" id="mparc-venc-box">
         <label>Vencimento da 1ª parcela</label>
         <input type="date" id="mparc-venc" onchange="atualizarPreviaParcelas()">
       </div>
+      <div id="mparc-venc-lista" class="bol-datas" style="display:none"></div>
       <div id="mparc-previa" style="margin-bottom:1rem"></div>
       <div id="mparc-cfg"></div>
 
@@ -5168,6 +5241,7 @@ function abrirVendaAntiga() {
   document.getElementById('va-boleto-box').style.display = 'none';
   document.getElementById('va-venc').value = '';
   document.getElementById('va-cpf').value = '';
+  bolResetar('va');
   vaParcelas = [];
   document.getElementById('va-baixar').checked = false;
   document.getElementById('va-msg').style.display = 'none';
@@ -5353,13 +5427,10 @@ function vaTrocouPagamento() {
   document.getElementById('va-boleto-box').style.display = boleto ? '' : 'none';
   if (boleto) {
     const venc = document.getElementById('va-venc');
-    // Sugere o 1º vencimento no mês seguinte ao da venda — o mais comum
+    // Sugere o 1º vencimento 30 dias depois da venda — o mais comum
     if (!venc.value) {
-      const d = new Date(document.getElementById('va-data').value + 'T12:00:00');
-      if (!isNaN(d)) {
-        d.setMonth(d.getMonth() + 1);
-        venc.value = d.toISOString().slice(0, 10);
-      }
+      const dataVenda = document.getElementById('va-data').value;
+      if (dataISOValida(dataVenda)) venc.value = somarDias(dataVenda, 30);
     }
     vaMontarParcelas();
   } else {
@@ -5381,12 +5452,14 @@ function vaMontarParcelas() {
   }).join('');
 
   const n = Number(sel.value) || 1;
-  const inicio = document.getElementById('va-venc').value;
-  if (!inicio || total <= 0) { vaParcelas = []; renderVaParcelas(); return; }
+  bolSincronizarLista('va', n);
+  const datas = bolVencimentos('va', n);
+  // Histórico pode ter vencimento no passado; só a ordem precisa estar certa
+  const erroDatas = bolErroDatas(datas, false);
+  if (erroDatas || total <= 0) { vaParcelas = []; renderVaParcelas(erroDatas); return; }
 
   const valores = vaDividir(total, n);
-  const datas = vaVencimentos(inicio, n);
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = hojeISO();
 
   // Mantém o que já foi marcado à mão; para as novas, o palpite é que
   // parcela vencida já foi paga — é o caso normal ao lançar histórico.
@@ -5408,18 +5481,20 @@ function vaTogglePaga(n) {
   if (p) { p.paga = !p.paga; renderVaParcelas(); }
 }
 
-function renderVaParcelas() {
+function renderVaParcelas(motivo) {
   const alvo = document.getElementById('va-lista-parcelas');
   const resumo = document.getElementById('va-resumo-parc');
   if (!alvo) return;
 
   if (!vaParcelas.length) {
-    alvo.innerHTML = '<div class="pdv-vazio">Informe os itens e o vencimento da 1ª parcela.</div>';
-    resumo.textContent = '';
+    alvo.innerHTML = motivo && motivo !== 'Informe o vencimento de todas as parcelas.'
+      ? `<div class="bol-aviso">⚠️ ${motivo}</div>`
+      : '<div class="pdv-vazio">Informe os itens e o vencimento das parcelas.</div>';
+    if (resumo) resumo.textContent = '';
     return;
   }
 
-  const hoje = new Date().toISOString().slice(0, 10);
+  const hoje = hojeISO();
   const nPagas = vaParcelas.filter(p => p.paga).length;
 
   alvo.innerHTML = `
@@ -5507,6 +5582,7 @@ async function salvarVendaAntiga(btn) {
         valorTotal: Math.round(total * 100) / 100,
         criadoEm: data.toISOString(),
         historico: true,
+        intervaloDias: bolIntervaloGravar('va'),
         pagas: vaParcelas.filter(x => x.paga).length,
         parcelas: vaParcelas.map(x => x.paga
           ? { n: x.n, valor: x.valor, vencimento: x.vencimento, status: 'RECEIVED',
@@ -5587,10 +5663,10 @@ function baixarModeloVendas() {
   const hoje = new Date(Date.now() - 30 * 864e5).toLocaleDateString('pt-BR');
   const linhas = [
     ['Venda', 'Data', 'Cliente', 'Pagamento', 'Produto', 'Qtd', 'Preço unitário', 'Custo unitário',
-     'Desconto', 'Parcelas', 'Parcelas pagas', '1º vencimento', 'Observações'],
-    [1, hoje, 'Maria Silva', 'Dinheiro', 'Garrafa Térmica Stanley 500 ml', 2, 49.9, 28, 0, '', '', '', 'venda do caderno'],
-    [1, hoje, 'Maria Silva', 'Dinheiro', 'Copo Garrafa Stanley 900ml', 1, 59.9, 32, '', '', '', '', ''],
-    [2, hoje, 'João Souza', 'Boleto', 'Cabo 4 em 1 65W 1,2M', 10, 41.4, 22, 0, 3, 1, hoje, 'parcelado em 3x']
+     'Desconto', 'Parcelas', 'Parcelas pagas', '1º vencimento', 'Intervalo (dias)', 'Observações'],
+    [1, hoje, 'Maria Silva', 'Dinheiro', 'Garrafa Térmica Stanley 500 ml', 2, 49.9, 28, 0, '', '', '', '', 'venda do caderno'],
+    [1, hoje, 'Maria Silva', 'Dinheiro', 'Copo Garrafa Stanley 900ml', 1, 59.9, 32, '', '', '', '', '', ''],
+    [2, hoje, 'João Souza', 'Boleto', 'Cabo 4 em 1 65W 1,2M', 10, 41.4, 22, 0, 3, 1, hoje, 30, 'parcelado em 3x']
   ];
   const ajuda = [
     ['COMO PREENCHER'],
@@ -5611,6 +5687,7 @@ function baixarModeloVendas() {
     ['Parcelas', 'Em quantas vezes foi dividido. Vazio ou 1 = à vista.'],
     ['Parcelas pagas', 'Quantas o cliente já pagou. As demais entram no controle de parcelamentos.'],
     ['1º vencimento', 'Data de vencimento da primeira parcela. Formato dd/mm/aaaa.'],
+    ['Intervalo (dias)', 'Dias entre uma parcela e outra: 10, 20 ou 30. Vazio = mensal (mesmo dia de cada mês).'],
     [],
     ['Observações', 'Opcional. Também só na primeira linha da venda.'],
     [],
@@ -5619,7 +5696,7 @@ function baixarModeloVendas() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(linhas);
   ws['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 24 }, { wch: 12 }, { wch: 42 }, { wch: 7 }, { wch: 14 },
-                 { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 26 }];
+                 { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 26 }];
   XLSX.utils.book_append_sheet(wb, ws, 'Vendas');
   const wa = XLSX.utils.aoa_to_sheet(ajuda);
   wa['!cols'] = [{ wch: 16 }, { wch: 74 }];
@@ -5706,6 +5783,7 @@ async function lerPlanilhaVendas(input) {
         const nParc = Math.trunc(vaNum(chave(l, 'Parcelas', 'Parcela', 'Qtd parcelas')));
         const pagas = Math.trunc(vaNum(chave(l, 'Parcelas pagas', 'Pagas', 'Parcelas quitadas')));
         const venc1 = vaLerData(chave(l, '1º vencimento', '1o vencimento', 'Primeiro vencimento', 'Vencimento'));
+        const intervaloCol = Math.trunc(vaNum(chave(l, 'Intervalo (dias)', 'Intervalo', 'Dias entre parcelas')));
         grupos.set(id, {
           ref, data,
           cliente: String(chave(l, 'Cliente') || '').trim() || 'Cliente não informado',
@@ -5714,6 +5792,7 @@ async function lerPlanilhaVendas(input) {
           obs: String(chave(l, 'Observações', 'Observacoes', 'Obs') || '').trim(),
           parcelas: (nParc > 1 && nParc <= 60) ? nParc : 0,
           parcelasPagas: Math.max(0, pagas),
+          intervalo: INTERVALOS_BOLETO.includes(intervaloCol) ? intervaloCol : 0,
           primeiroVenc: venc1 || data,
           itens: []
         });
@@ -5822,13 +5901,17 @@ async function importarVendas(btn) {
         let parcelamento = null;
         if (v.parcelas > 1) {
           const valores = vaDividir(v.total, v.parcelas);
-          const datas = vaVencimentos(
-            v.primeiroVenc.toISOString().slice(0, 10), v.parcelas);
+          const inicioISO = v.primeiroVenc.toISOString().slice(0, 10);
+          // Com intervalo na planilha, a cada N dias; sem, mensal (mesmo dia do mês)
+          const datas = v.intervalo
+            ? Array.from({ length: v.parcelas }, (_, i) => somarDias(inicioISO, i * v.intervalo))
+            : vaVencimentos(inicioISO, v.parcelas);
           parcelamento = {
             total: v.parcelas,
             valorTotal: Math.round(v.total * 100) / 100,
             criadoEm: v.data.toISOString(),
             historico: true,
+            intervaloDias: v.intervalo || 'mensal',
             pagas: Math.min(v.parcelasPagas, v.parcelas),
             parcelas: valores.map((valor, i) => (i < v.parcelasPagas)
               ? { n: i + 1, valor, vencimento: datas[i], status: 'RECEIVED',
@@ -6298,8 +6381,8 @@ function vendAbrir() {
     new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   const cat = document.getElementById('vend-categoria');
   if (cat) cat.value = '';
-  const d = new Date(Date.now() + 3 * 864e5);
-  document.getElementById('vend-venc').value = d.toISOString().slice(0, 10);
+  document.getElementById('vend-venc').value = somarDias(hojeISO(), 3);
+  bolResetar('vend');
   const cfg = document.getElementById('vend-cfg');
   if (cfg && !cfg.innerHTML) cfg.innerHTML = htmlConfigBoleto('vend');
   resumoBoleto('vend');
@@ -6542,19 +6625,16 @@ function vendAtualizar() {
 }
 
 function vendPrevia() {
-  const n = Number(document.getElementById('vend-parcelas').value) || 1;
-  const inicio = document.getElementById('vend-venc').value;
+  const n = bolQtd('vend');
+  bolSincronizarLista('vend', n);
   const alvo = document.getElementById('vend-previa');
-  if (!inicio) { alvo.innerHTML = ''; return; }
-  const [ano, mes, dia] = inicio.split('-').map(Number);
-  const datas = Array.from({ length: n }, (_, i) => {
-    const d = new Date(ano, mes - 1 + i, 1);
-    const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    d.setDate(Math.min(dia, ultimo));
-    return d.toLocaleDateString('pt-BR');
-  });
+  if (!alvo) return;
+  const datas = bolVencimentos('vend', n);
+  const erro = bolErroDatas(datas, true);
+  if (erro) { alvo.innerHTML = `<div class="bol-aviso">⚠️ ${erro}</div>`; return; }
   alvo.innerHTML = `<div style="font-size:.76rem; color:var(--text-muted); line-height:1.6">
-    Vencimentos: ${datas.join(' · ')}<br><strong>Todos os boletos são gerados agora.</strong></div>`;
+    Vencimentos (${bolDescricaoIntervalo('vend')}): ${datas.map(dataBR).join(' · ')}<br>
+    <strong>Todos os boletos são gerados agora.</strong></div>`;
 }
 
 function vendLimpar() {
@@ -6655,11 +6735,18 @@ async function vendGerarPDF() {
 
   // Se o vendedor já escolheu boleto, o cliente vê como ficam as parcelas
   if (vendFormaPag === 'Boleto') {
-    const n = Number(document.getElementById('vend-parcelas')?.value) || 1;
+    const n = bolQtd('vend');
     fy += 2;
     doc.setFontSize(9.5).setFont(undefined, 'normal').setTextColor(70);
-    doc.text(n > 1 ? `Condição: boleto em ${n}x de ${fmt(total / n)}` : 'Condição: boleto à vista', 14, fy);
+    doc.text(n > 1 ? `Condição: boleto em ${n}x de ${fmt(total / n)} (${bolDescricaoIntervalo('vend')})`
+                   : 'Condição: boleto à vista', 14, fy);
     fy += 6;
+    const datasBol = bolVencimentos('vend', n);
+    if (datasBol && !bolErroDatas(datasBol, false)) {
+      const linhasVenc = doc.splitTextToSize('Vencimentos: ' + datasBol.map(dataBR).join(', '), 182);
+      doc.text(linhasVenc, 14, fy);
+      fy += 5 * linhasVenc.length + 1;
+    }
   } else if (vendFormaPag) {
     fy += 2;
     doc.setFontSize(9.5).setFont(undefined, 'normal').setTextColor(70);
@@ -6698,6 +6785,15 @@ async function vendFinalizar() {
     return toast('⚠️ Informe o nome do cliente para emitir boleto.');
   }
   if (cpfCnpj && !cpfCnpjValido(cpfCnpj)) return toast('⚠️ CPF/CNPJ inválido.');
+
+  // Datas dos boletos: conferidas ANTES de gravar o pedido, senão ele nasceria
+  // aguardando pagamento sem nenhum boleto emitido.
+  let vencimentosBoleto = null;
+  if (noBoleto) {
+    vencimentosBoleto = bolVencimentos('vend', bolQtd('vend'));
+    const erroDatas = bolErroDatas(vencimentosBoleto, true);
+    if (erroDatas) return toast('⚠️ ' + erroDatas);
+  }
 
   const endereco = document.getElementById('vend-endereco').value.trim();
   if (!endereco) return toast('⚠️ Informe o endereço de entrega.');
@@ -6745,8 +6841,10 @@ async function vendFinalizar() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pedidoId: ref.id,
-          parcelas: Number(document.getElementById('vend-parcelas').value) || 1,
-          primeiroVencimento: document.getElementById('vend-venc').value,
+          parcelas: vencimentosBoleto.length,
+          primeiroVencimento: vencimentosBoleto[0],
+          intervaloDias: bolIntervaloGravar('vend'),
+          vencimentos: vencimentosBoleto,
           configBoleto: lerConfigBoleto('vend'),
           token
         })
@@ -6814,7 +6912,8 @@ function pdvAbrir() {
   if (cfg && !cfg.innerHTML) cfg.innerHTML = htmlConfigBoleto('pdv');
   resumoBoleto('pdv');
   const dv = document.getElementById('pdv-venc');
-  if (dv && !dv.value) dv.value = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+  if (dv && !dv.value) dv.value = somarDias(hojeISO(), 3);
+  if (!document.getElementById('pdv-venc-lista')?.innerHTML) bolResetar('pdv');
   pdvBuscar();
   pdvAtualizar();
   setTimeout(() => { const b = document.getElementById('pdv-busca'); if (b) b.focus(); }, 120);
@@ -7230,6 +7329,9 @@ function pdvAtualizar() {
  */
 async function pdvFinalizarBoleto(codigo, cliente, cpfCnpj, sub, desc, total, btn) {
   const api = normalizarApi(config.api);
+  const vencimentosBoleto = bolVencimentos('pdv', bolQtd('pdv'));
+  const erroDatas = bolErroDatas(vencimentosBoleto, true);
+  if (erroDatas) throw new Error(erroDatas);
   const totalFalta = pdvItens.reduce((soma, i) => soma + pdvFaltando(i), 0);
   const itens = pdvItens.map(i => ({ id: i.id, nome: i.nome, preco: pdvPrecoItem(i), qtd: i.qtd, encomendado: pdvFaltando(i) , custoUnit: custoAgora(i.id) }));
 
@@ -7255,8 +7357,10 @@ async function pdvFinalizarBoleto(codigo, cliente, cpfCnpj, sub, desc, total, bt
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       pedidoId: ref.id,
-      parcelas: Number(document.getElementById('pdv-parcelas').value) || 1,
-      primeiroVencimento: document.getElementById('pdv-venc').value,
+      parcelas: vencimentosBoleto.length,
+      primeiroVencimento: vencimentosBoleto[0],
+      intervaloDias: bolIntervaloGravar('pdv'),
+      vencimentos: vencimentosBoleto,
       configBoleto: lerConfigBoleto('pdv'),
       token
     })
@@ -7287,20 +7391,16 @@ async function pdvFinalizarBoleto(codigo, cliente, cpfCnpj, sub, desc, total, bt
 }
 
 function pdvPrevia() {
-  const n = Number(document.getElementById('pdv-parcelas').value) || 1;
-  const inicio = document.getElementById('pdv-venc').value;
+  const n = bolQtd('pdv');
+  bolSincronizarLista('pdv', n);
   const alvo = document.getElementById('pdv-previa');
   if (!alvo) return;
-  if (!inicio) { alvo.innerHTML = ''; return; }
-  const [ano, mes, dia] = inicio.split('-').map(Number);
-  const datas = Array.from({ length: n }, (_, i) => {
-    const d = new Date(ano, mes - 1 + i, 1);
-    const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    d.setDate(Math.min(dia, ultimo));
-    return d.toLocaleDateString('pt-BR');
-  });
+  const datas = bolVencimentos('pdv', n);
+  const erro = bolErroDatas(datas, true);
+  if (erro) { alvo.innerHTML = `<div class="bol-aviso">⚠️ ${erro}</div>`; return; }
   alvo.innerHTML = `<div style="font-size:.76rem; color:var(--text-muted); line-height:1.6">
-    Vencimentos: ${datas.join(' · ')}<br><strong>Todos os boletos são gerados agora.</strong></div>`;
+    Vencimentos (${bolDescricaoIntervalo('pdv')}): ${datas.map(dataBR).join(' · ')}<br>
+    <strong>Todos os boletos são gerados agora.</strong></div>`;
 }
 
 function pdvLimpar() {
@@ -7333,6 +7433,10 @@ async function pdvFinalizar() {
     const temNome = (pdvModo === 'cadastrado' && pdvCliente) ||
                     document.getElementById('pdv-cliente').value.trim() !== '';
     if (!temNome) return toast('⚠️ Informe o nome do cliente ou selecione um cadastrado.');
+    // Datas dos boletos conferidas antes de gravar: o pedido não pode nascer
+    // aguardando pagamento sem boleto nenhum.
+    const erroDatas = bolErroDatas(bolVencimentos('pdv', bolQtd('pdv')), true);
+    if (erroDatas) return toast('⚠️ ' + erroDatas);
   }
 
   const btn = document.getElementById('pdv-finalizar');
@@ -8500,6 +8604,141 @@ function resumoBoleto(pref) {
     : 'Sem multa, juros ou desconto — o boleto sai só com o valor.';
 }
 
+/* ==================== VENCIMENTO DAS PARCELAS ====================
+ * O vendedor escolhe o intervalo entre os boletos (a cada 10, 20 ou 30 dias)
+ * ou "personalizado", em que ele mesmo digita a data de cada parcela.
+ * O mesmo bloco aparece na Área do Vendedor (vend), no PDV (pdv), no
+ * "Aprovar via boleto" (mparc) e no lançamento de venda antiga (va); o
+ * prefixo separa os campos de cada tela.
+ */
+const INTERVALOS_BOLETO = [30, 20, 10];
+
+function bolCampos(pref) {
+  return {
+    vend:  { qtd: 'vend-parcelas', venc: 'vend-venc',  atualizar: () => vendAtualizar() },
+    pdv:   { qtd: 'pdv-parcelas',  venc: 'pdv-venc',   atualizar: () => pdvAtualizar() },
+    mparc: { qtd: 'mparc-qtd',     venc: 'mparc-venc', atualizar: () => atualizarPreviaParcelas() },
+    va:    { qtd: 'va-parcelas',   venc: 'va-venc',    atualizar: () => vaMontarParcelas() }
+  }[pref];
+}
+
+// Data de hoje no formato aaaa-mm-dd, no fuso do navegador (toISOString usa
+// UTC e vira "amanhã" depois das 21h no Brasil).
+function hojeISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Soma dias a uma data aaaa-mm-dd. Feito em UTC para não sofrer com fuso.
+function somarDias(iso, dias) {
+  const d = new Date(iso + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+function dataISOValida(v) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v || '')) return false;
+  const d = new Date(v + 'T12:00:00Z');
+  return !isNaN(d) && d.toISOString().slice(0, 10) === v;
+}
+
+function bolModo(pref) { return document.getElementById(pref + '-intervalo')?.value || '30'; }
+function bolQtd(pref) { return Number(document.getElementById(bolCampos(pref).qtd)?.value) || 1; }
+
+// Volta o bloco para o padrão (a cada 30 dias), ao abrir a tela ou o modal
+function bolResetar(pref) {
+  const sel = document.getElementById(pref + '-intervalo');
+  if (sel) sel.value = '30';
+  const lista = document.getElementById(pref + '-venc-lista');
+  if (lista) { lista.innerHTML = ''; lista.style.display = 'none'; }
+  const box = document.getElementById(pref + '-venc-box');
+  if (box) box.style.display = '';
+}
+
+// Trocou entre "a cada N dias" e "personalizado"
+function bolTrocouIntervalo(pref) {
+  const custom = bolModo(pref) === 'custom';
+  const box = document.getElementById(pref + '-venc-box');
+  const lista = document.getElementById(pref + '-venc-lista');
+  if (box) box.style.display = custom ? 'none' : '';
+  if (lista) lista.style.display = custom ? '' : 'none';
+  if (custom) bolSincronizarLista(pref, bolQtd(pref), true);
+  bolCampos(pref).atualizar();
+}
+
+/*
+ * Garante que a lista personalizada tem exatamente n campos de data, sem
+ * apagar o que o vendedor já digitou. Campo novo vem sugerido com 30 dias
+ * depois da parcela anterior (a 1ª copia o campo "Vencimento da 1ª parcela").
+ * Só remonta quando a quantidade muda (ou quando `forcar` é true), para não
+ * derrubar o foco de um campo que está sendo digitado.
+ */
+function bolSincronizarLista(pref, n, forcar) {
+  const lista = document.getElementById(pref + '-venc-lista');
+  if (!lista || bolModo(pref) !== 'custom') return;
+  const existentes = lista.querySelectorAll('input[type="date"]').length;
+  if (existentes === n && !forcar) return;
+
+  const inicio = document.getElementById(bolCampos(pref).venc)?.value || '';
+  const valores = [];
+  for (let i = 0; i < n; i++) {
+    let v = document.getElementById(`${pref}-venc-${i + 1}`)?.value || '';
+    if (!dataISOValida(v)) {
+      v = i === 0 ? (dataISOValida(inicio) ? inicio : '')
+                  : (valores[i - 1] ? somarDias(valores[i - 1], 30) : '');
+    }
+    valores.push(v);
+  }
+  lista.innerHTML = '<span class="bol-datas-rotulo">Vencimento de cada parcela</span>' +
+    valores.map((v, i) => `
+      <div class="bol-data-li">
+        <span>${i + 1}ª</span>
+        <input type="date" id="${pref}-venc-${i + 1}" value="${v}" onchange="bolCampos('${pref}').atualizar()">
+      </div>`).join('');
+}
+
+// Devolve as n datas de vencimento (aaaa-mm-dd), ou null se falta alguma
+function bolVencimentos(pref, n) {
+  if (bolModo(pref) === 'custom') {
+    const datas = [];
+    for (let i = 1; i <= n; i++) {
+      const v = document.getElementById(`${pref}-venc-${i}`)?.value;
+      if (!dataISOValida(v)) return null;
+      datas.push(v);
+    }
+    return datas;
+  }
+  const inicio = document.getElementById(bolCampos(pref).venc)?.value;
+  if (!dataISOValida(inicio)) return null;
+  const dias = Number(bolModo(pref));
+  const passo = INTERVALOS_BOLETO.includes(dias) ? dias : 30;
+  return Array.from({ length: n }, (_, i) => somarDias(inicio, i * passo));
+}
+
+// Texto do erro, ou '' se as datas estão completas e em ordem.
+// `exigeFuturo`: a Asaas não emite boleto com vencimento no passado — vale
+// para emissão real, mas não para o histórico (venda antiga).
+function bolErroDatas(datas, exigeFuturo) {
+  if (!datas || !datas.length) return 'Informe o vencimento de todas as parcelas.';
+  if (exigeFuturo && datas[0] < hojeISO()) return 'O vencimento da 1ª parcela já passou.';
+  for (let i = 1; i < datas.length; i++) {
+    if (datas[i] < datas[i - 1]) return `A ${i + 1}ª parcela vence antes da ${i}ª.`;
+  }
+  return '';
+}
+
+// Como o intervalo fica gravado no pedido: 10, 20, 30 ou 'personalizado'
+function bolIntervaloGravar(pref) {
+  const m = bolModo(pref);
+  return m === 'custom' ? 'personalizado' : (INTERVALOS_BOLETO.includes(Number(m)) ? Number(m) : 30);
+}
+
+// Texto curto para mostrar no PDF / na prévia
+function bolDescricaoIntervalo(pref) {
+  const m = bolModo(pref);
+  return m === 'custom' ? 'datas personalizadas' : `a cada ${m} dias`;
+}
+
 /* ==================== PARCELAMENTO NO BOLETO ====================
  * Venda parcelada em que a própria loja emite os boletos, um por mês.
  * O plano vive dentro do pedido, em "parcelamento.parcelas".
@@ -8589,9 +8828,9 @@ function abrirParcelamento(pedidoId) {
   document.getElementById('mparc-total').textContent = fmt(p.total || 0);
   document.getElementById('mparc-id').value = pedidoId;
 
-  // Vencimento sugerido: daqui a 3 dias
-  const d = new Date(Date.now() + 3 * 864e5);
-  document.getElementById('mparc-venc').value = d.toISOString().slice(0, 10);
+  // Vencimento sugerido: daqui a 3 dias, a cada 30 dias
+  document.getElementById('mparc-venc').value = somarDias(hojeISO(), 3);
+  bolResetar('mparc');
 
   const sel = document.getElementById('mparc-qtd');
   sel.innerHTML = Array.from({ length: 10 }, (_, i) => {
@@ -8612,26 +8851,25 @@ function fecharParcelamento() {
 
 // Mostra as datas de vencimento antes de confirmar, para o vendedor conferir
 function atualizarPreviaParcelas() {
-  const n = Number(document.getElementById('mparc-qtd').value) || 1;
-  const inicio = document.getElementById('mparc-venc').value;
+  const n = bolQtd('mparc');
+  bolSincronizarLista('mparc', n);
   const alvo = document.getElementById('mparc-previa');
-  if (!inicio) { alvo.innerHTML = ''; return; }
-  const [ano, mes, dia] = inicio.split('-').map(Number);
-  const linhas = Array.from({ length: n }, (_, i) => {
-    const d = new Date(ano, mes - 1 + i, 1);
-    const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    d.setDate(Math.min(dia, ultimo));
-    return `${i + 1}ª · ${d.toLocaleDateString('pt-BR')}`;
-  });
+  const datas = bolVencimentos('mparc', n);
+  const erro = bolErroDatas(datas, true);
+  if (erro) { alvo.innerHTML = `<div class="bol-aviso">⚠️ ${erro}</div>`; return; }
+  const linhas = datas.map((d, i) => `${i + 1}ª · ${dataBR(d)}`);
   alvo.innerHTML = `<div style="font-size:.78rem; color:var(--text-muted); line-height:1.7">
-    Vencimentos: ${linhas.join(' · ')}<br>
+    Vencimentos (${bolDescricaoIntervalo('mparc')}): ${linhas.join(' · ')}<br>
     <strong>Todos os boletos são gerados agora</strong> — o cliente pode antecipar parcelas se quiser.</div>`;
 }
 
 async function confirmarParcelamento(btn) {
   const pedidoId = document.getElementById('mparc-id').value;
-  const parcelas = Number(document.getElementById('mparc-qtd').value) || 1;
-  const primeiroVencimento = document.getElementById('mparc-venc').value;
+  const parcelas = bolQtd('mparc');
+  const vencimentos = bolVencimentos('mparc', parcelas);
+  const erroDatas = bolErroDatas(vencimentos, true);
+  if (erroDatas) return toast('⚠️ ' + erroDatas);
+  const primeiroVencimento = vencimentos[0];
   const txt = btn.textContent;
   btn.disabled = true; btn.textContent = '⏳ Gerando boleto...';
   try {
@@ -8641,6 +8879,8 @@ async function confirmarParcelamento(btn) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pedidoId, parcelas, primeiroVencimento, token,
+                             intervaloDias: bolIntervaloGravar('mparc'),
+                             vencimentos,
                              configBoleto: lerConfigBoleto('mparc') })
     });
     const corpo = await r.json().catch(() => ({}));
@@ -8759,8 +8999,54 @@ async function confirmarBaixa(btnModal) {
 function quitarParcela(pedidoId, n, btn) { abrirBaixa(pedidoId, n, btn, false); }
 function quitarParcelamento(pedidoId, btn) { abrirBaixa(pedidoId, null, btn, true); }
 
-/* ---------- Vendedor: gerar o boleto de uma parcela ---------- */
-async function gerarParcela(pedidoId, n, btn) {
+/* ---------- Vendedor: gerar o boleto de uma parcela ----------
+ * Abre um modal com a data de vencimento já preenchida com a prevista da
+ * parcela; o vendedor pode mudar (ex.: a data prevista já passou, ou o
+ * boleto anterior saiu com data errada e foi cancelado).
+ */
+let gerarAlvo = null;
+
+function gerarParcela(pedidoId, n, btn) {
+  if (!normalizarApi(config.api)) return toast('⚠️ Servidor de pagamento não configurado.');
+  const p = pedidos.find(x => x.id === pedidoId);
+  const par = (p?.parcelamento?.parcelas || []).find(x => x.n === n);
+  if (!par) return toast('⚠️ Parcela não encontrada.');
+  gerarAlvo = { pedidoId, n, btn };
+
+  const hoje = hojeISO();
+  const sugerida = (par.vencimento && par.vencimento >= hoje) ? par.vencimento : somarDias(hoje, 3);
+  document.getElementById('gp-sub').innerHTML =
+    `Parcela <strong>${n}/${p.parcelamento.total}</strong> de ${p.codigo} — ${fmt(par.valor)}.` +
+    (par.vencimento && par.vencimento < hoje
+      ? `<br>A data prevista (${dataBR(par.vencimento)}) já passou; sugerimos daqui a 3 dias.` : '');
+  const inp = document.getElementById('gp-venc');
+  inp.value = sugerida;
+  inp.min = hoje;
+  document.getElementById('gp-msg').style.display = 'none';
+  document.getElementById('modal-gerar-parcela').classList.add('open');
+}
+
+function fecharGerarParcela() {
+  document.getElementById('modal-gerar-parcela').classList.remove('open');
+  gerarAlvo = null;
+}
+
+async function confirmarGerarParcela(btnModal) {
+  if (!gerarAlvo) return;
+  const vencimento = document.getElementById('gp-venc').value;
+  const msg = document.getElementById('gp-msg');
+  const erro = !dataISOValida(vencimento) ? 'Informe a data de vencimento.'
+             : vencimento < hojeISO() ? 'A data de vencimento já passou.' : '';
+  if (erro) {
+    msg.style.display = 'block'; msg.className = 'msg err'; msg.textContent = erro;
+    return;
+  }
+  const { pedidoId, n, btn } = gerarAlvo;
+  fecharGerarParcela();
+  await emitirParcela(pedidoId, n, vencimento, btn);
+}
+
+async function emitirParcela(pedidoId, n, vencimento, btn) {
   const txt = btn.textContent;
   btn.disabled = true; btn.textContent = '⏳...';
   try {
@@ -8770,7 +9056,7 @@ async function gerarParcela(pedidoId, n, btn) {
     const r = await fetch(api + '/api/gerar-parcela', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pedidoId, n, token })
+      body: JSON.stringify({ pedidoId, n, vencimento, token })
     });
     const corpo = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(corpo.erro || 'erro ' + r.status);
@@ -9480,7 +9766,7 @@ const ALIAS_COLUNAS = {
   preco: ['preco', 'preço', 'valor', 'preco varejo', 'preço varejo', 'varejo'],
   precoAtacado: ['precoatacado', 'preço atacado', 'preco atacado', 'atacado'],
   custo: ['custo', 'preco de custo', 'preço de custo', 'precocusto', 'preço custo', 'preco custo'],
-  estoque: ['entrada', 'entrada de estoque', 'estoque', 'qtd', 'quantidade'],
+  estoque: ['estoque', 'qtd', 'quantidade', 'estoque atual'],
   categoria: ['categoria', 'categoria do produto']
 };
 
@@ -9497,9 +9783,7 @@ function normalizarChave(s) {
  * uma base pronta para digitar produtos novos no mesmo padrão.
  */
 function baixarModeloProdutos() {
-  // "estoque hoje" é só para consulta: nenhum sinônimo da importação bate
-  // com esse nome, então ele é ignorado ao reenviar a planilha.
-  const COLS = ['nome', 'descricao', 'categoria', 'custo', 'preco', 'precoAtacado', 'estoque hoje', 'entrada'];
+  const COLS = ['nome', 'descricao', 'categoria', 'custo', 'preco', 'precoAtacado', 'estoque'];
 
   const atuais = [...produtos].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   const linhas = [
@@ -9511,8 +9795,7 @@ function baixarModeloProdutos() {
       Number(p.custo) || '',
       Number(p.preco) || '',
       (p.precoAtacado !== undefined && p.precoAtacado !== null) ? Number(p.precoAtacado) : '',
-      Number(p.estoque) || 0,   // quanto tem hoje — só para você conferir
-      ''                        // entrada: preencha só o que está CHEGANDO
+      ''   // em branco: preencha só a quantidade que está CHEGANDO
     ])
   ];
   // Duas linhas vazias no fim para digitar produto novo sem apagar nada
@@ -9526,9 +9809,8 @@ function baixarModeloProdutos() {
     [],
     ['Produtos são reconhecidos pelo NOME. Se o nome já existe no catálogo, a linha NÃO cria'],
     ['um produto novo: o estoque digitado é SOMADO ao que já tem, e os preços são atualizados.'],
-    ['A coluna "estoque hoje" mostra quanto tem agora e é IGNORADA ao importar — serve só para conferir.'],
-    ['Na coluna "entrada" preencha só o que ESTÁ CHEGANDO. Ex.: tem 5 hoje e chegaram 10 → digite 10.'],
-    ['Deixe "entrada" vazia se você só quer corrigir preço ou descrição.'],
+    ['Por isso, na coluna estoque preencha só o que ESTÁ CHEGANDO agora, não o total.'],
+    ['Deixe a linha com estoque vazio se você só quer corrigir preço ou descrição.'],
     [],
     ['COLUNA', 'O QUE PREENCHER'],
     ['nome', 'Nome do produto. Obrigatório.'],
@@ -9537,8 +9819,7 @@ function baixarModeloProdutos() {
     ['custo', 'Quanto você pagou por unidade. Não aparece para o cliente — serve para o Dashboard calcular o lucro.'],
     ['preco', 'Preço de varejo. Obrigatório.'],
     ['precoAtacado', 'Preço quando o carrinho tem 3 itens ou mais. Precisa ser menor que o varejo. Deixe vazio se não trabalha com atacado.'],
-    ['estoque hoje', 'Quantidade em estoque no momento em que a planilha foi baixada. Só leitura.'],
-    ['entrada', 'Quantidade que está chegando. É SOMADA ao estoque do produto.'],
+    ['estoque', 'Quantidade disponível. Vem em branco de propósito: preencha com o que tem hoje.'],
     [],
     ['Valores podem ser digitados com vírgula (49,90) ou ponto (49.90).'],
     ['Não mude os nomes das colunas nem apague a primeira linha.']
@@ -9546,7 +9827,7 @@ function baixarModeloProdutos() {
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(linhas);
-  ws['!cols'] = [{ wch: 46 }, { wch: 52 }, { wch: 18 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 13 }, { wch: 10 }];
+  ws['!cols'] = [{ wch: 46 }, { wch: 52 }, { wch: 18 }, { wch: 11 }, { wch: 11 }, { wch: 13 }, { wch: 10 }];
   XLSX.utils.book_append_sheet(wb, ws, 'Produtos');
 
   const wa = XLSX.utils.aoa_to_sheet(ajuda);
