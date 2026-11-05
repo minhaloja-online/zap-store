@@ -2250,6 +2250,19 @@
             <input type="text" id="vend-cnpj" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)">
             <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">A Asaas exige o documento para emitir boleto.</p>
           </div>
+          <div class="pdv-filtros" style="margin-bottom:.4rem">
+            <div class="field" style="margin-bottom:0">
+              <label>Entrada (R$)</label>
+              <input type="number" id="vend-entrada" min="0" step="0.01" value="0" placeholder="0,00" oninput="vendAtualizar()">
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label>Entrada paga com</label>
+              <select id="vend-entrada-forma" onchange="vendAtualizar()">
+                <option>Dinheiro</option><option>Pix</option><option>Débito</option><option>Crédito</option>
+              </select>
+            </div>
+          </div>
+          <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 .7rem">Deixe 0 se não houver entrada. Só o restante sai nos boletos.</p>
           <div class="field">
             <label>Em quantas vezes</label>
             <select id="vend-parcelas" onchange="vendAtualizar()"></select>
@@ -2361,6 +2374,19 @@
             <input type="text" id="pdv-cnpj" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)">
             <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px">A Asaas exige o documento para emitir boleto.</p>
           </div>
+          <div class="pdv-filtros" style="margin-bottom:.4rem">
+            <div class="field" style="margin-bottom:0">
+              <label>Entrada (R$)</label>
+              <input type="number" id="pdv-entrada" min="0" step="0.01" value="0" placeholder="0,00" oninput="pdvAtualizar()">
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label>Entrada paga com</label>
+              <select id="pdv-entrada-forma" onchange="pdvAtualizar()">
+                <option>Dinheiro</option><option>Pix</option><option>Débito</option><option>Crédito</option>
+              </select>
+            </div>
+          </div>
+          <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 .7rem">Deixe 0 se não houver entrada. Só o restante sai nos boletos.</p>
           <div class="field">
             <label>Em quantas vezes</label>
             <select id="pdv-parcelas" onchange="pdvAtualizar()"></select>
@@ -2680,6 +2706,19 @@
       <!-- Parcelamento do histórico: aparece só quando a venda foi no boleto -->
       <div id="va-boleto-box" style="display:none">
         <div class="cfg-secao">📄 Parcelamento</div>
+        <div class="pdv-filtros" style="margin-bottom:.4rem">
+          <div class="field" style="margin-bottom:0">
+            <label>Entrada (R$)</label>
+            <input type="number" id="va-entrada" min="0" step="0.01" value="0" placeholder="0,00" oninput="vaMontarParcelas()">
+          </div>
+          <div class="field" style="margin-bottom:0">
+            <label>Entrada paga com</label>
+            <select id="va-entrada-forma" onchange="vaMontarParcelas()">
+              <option>Dinheiro</option><option>Pix</option><option>Débito</option><option>Crédito</option>
+            </select>
+          </div>
+        </div>
+        <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 .7rem">Deixe 0 se não houver entrada. Só o restante sai nos boletos.</p>
         <div class="pdv-filtros" style="margin-bottom:.7rem">
           <div class="field" style="margin-bottom:0">
             <label>Em quantas vezes</label>
@@ -2829,6 +2868,19 @@
       </p>
       <input type="hidden" id="mparc-id">
 
+      <div class="pdv-filtros" style="margin-bottom:.4rem">
+        <div class="field" style="margin-bottom:0">
+          <label>Entrada (R$)</label>
+          <input type="number" id="mparc-entrada" min="0" step="0.01" value="0" placeholder="0,00" oninput="atualizarPreviaParcelas()">
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label>Entrada paga com</label>
+          <select id="mparc-entrada-forma" onchange="atualizarPreviaParcelas()">
+            <option>Dinheiro</option><option>Pix</option><option>Débito</option><option>Crédito</option>
+          </select>
+        </div>
+      </div>
+      <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 .7rem">Deixe 0 se não houver entrada. Só o restante sai nos boletos.</p>
       <div class="field">
         <label>Em quantas vezes</label>
         <select id="mparc-qtd" onchange="atualizarPreviaParcelas()"></select>
@@ -5242,6 +5294,7 @@ function abrirVendaAntiga() {
   document.getElementById('va-venc').value = '';
   document.getElementById('va-cpf').value = '';
   bolResetar('va');
+  bolResetarEntrada('va');
   vaParcelas = [];
   document.getElementById('va-baixar').checked = false;
   document.getElementById('va-msg').style.display = 'none';
@@ -5442,20 +5495,18 @@ function vaTrocouPagamento() {
 function vaMontarParcelas() {
   const sel = document.getElementById('va-parcelas');
   if (!sel) return;
-  const total = vaTotalAtual();
+  const totalVenda = vaTotalAtual();
+  // Os boletos são divididos sobre o que sobra depois da entrada
+  const total = bolRestante('va', totalVenda);
 
   // Opções com o valor de cada parcela já calculado
-  const escolhido = sel.value || '1';
-  sel.innerHTML = Array.from({ length: 24 }, (_, i) => {
-    const n = i + 1;
-    return `<option value="${n}"${String(n) === escolhido ? ' selected' : ''}>${n === 1 ? 'À vista' : n + 'x'} de ${fmt(total / n)}</option>`;
-  }).join('');
+  bolOpcoesParcelas(sel, total, 24);
 
   const n = Number(sel.value) || 1;
   bolSincronizarLista('va', n);
   const datas = bolVencimentos('va', n);
   // Histórico pode ter vencimento no passado; só a ordem precisa estar certa
-  const erroDatas = bolErroDatas(datas, false);
+  const erroDatas = bolErroEntrada('va', totalVenda) || bolErroDatas(datas, false);
   if (erroDatas || total <= 0) { vaParcelas = []; renderVaParcelas(erroDatas); return; }
 
   const valores = vaDividir(total, n);
@@ -5522,10 +5573,12 @@ function renderVaParcelas(motivo) {
 
   const pagas = vaParcelas.filter(p => p.paga).length;
   const falta = vaParcelas.filter(p => !p.paga).reduce((s, p) => s + p.valor, 0);
-  resumo.innerHTML = falta > 0
+  const entradaVa = bolEntrada('va');
+  const txtEntradaVa = entradaVa.valor > 0 ? `Entrada de ${fmt(entradaVa.valor)} em ${entradaVa.forma} · ` : '';
+  resumo.innerHTML = txtEntradaVa + (falta > 0
     ? `${pagas} de ${vaParcelas.length} pagas · <strong>${fmt(falta)} a receber</strong> em ${vaParcelas.length - pagas} parcela(s).
        As em aberto vão para o controle de parcelamentos.`
-    : `Todas as ${vaParcelas.length} parcelas marcadas como pagas — nada fica a receber.`;
+    : `Todas as ${vaParcelas.length} parcelas marcadas como pagas — nada fica a receber.`);
 }
 
 /* ---------- Gravar ---------- */
@@ -5583,6 +5636,9 @@ async function salvarVendaAntiga(btn) {
         criadoEm: data.toISOString(),
         historico: true,
         intervaloDias: bolIntervaloGravar('va'),
+        ...(bolEntrada('va').valor > 0 ? { entrada: {
+          valor: bolEntrada('va').valor, forma: bolEntrada('va').forma, pagoEm: data.toISOString() } } : {}),
+        valorBoletos: Math.round(vaParcelas.reduce((sm, x) => sm + x.valor, 0) * 100) / 100,
         pagas: vaParcelas.filter(x => x.paga).length,
         parcelas: vaParcelas.map(x => x.paga
           ? { n: x.n, valor: x.valor, vencimento: x.vencimento, status: 'RECEIVED',
@@ -5663,10 +5719,10 @@ function baixarModeloVendas() {
   const hoje = new Date(Date.now() - 30 * 864e5).toLocaleDateString('pt-BR');
   const linhas = [
     ['Venda', 'Data', 'Cliente', 'Pagamento', 'Produto', 'Qtd', 'Preço unitário', 'Custo unitário',
-     'Desconto', 'Parcelas', 'Parcelas pagas', '1º vencimento', 'Intervalo (dias)', 'Observações'],
-    [1, hoje, 'Maria Silva', 'Dinheiro', 'Garrafa Térmica Stanley 500 ml', 2, 49.9, 28, 0, '', '', '', '', 'venda do caderno'],
-    [1, hoje, 'Maria Silva', 'Dinheiro', 'Copo Garrafa Stanley 900ml', 1, 59.9, 32, '', '', '', '', '', ''],
-    [2, hoje, 'João Souza', 'Boleto', 'Cabo 4 em 1 65W 1,2M', 10, 41.4, 22, 0, 3, 1, hoje, 30, 'parcelado em 3x']
+     'Desconto', 'Entrada (R$)', 'Entrada paga com', 'Parcelas', 'Parcelas pagas', '1º vencimento', 'Intervalo (dias)', 'Observações'],
+    [1, hoje, 'Maria Silva', 'Dinheiro', 'Garrafa Térmica Stanley 500 ml', 2, 49.9, 28, 0, '', '', '', '', '', '', 'venda do caderno'],
+    [1, hoje, 'Maria Silva', 'Dinheiro', 'Copo Garrafa Stanley 900ml', 1, 59.9, 32, '', '', '', '', '', '', '', ''],
+    [2, hoje, 'João Souza', 'Boleto', 'Cabo 4 em 1 65W 1,2M', 10, 41.4, 22, 0, 100, 'Pix', 3, 1, hoje, 30, 'entrada + 3x']
   ];
   const ajuda = [
     ['COMO PREENCHER'],
@@ -5684,6 +5740,8 @@ function baixarModeloVendas() {
     ['Desconto', 'Desconto em reais da venda inteira. Preencha só na primeira linha da venda.'],
     [],
     ['PARCELAMENTO — preencha só na PRIMEIRA linha da venda, e só se foi parcelado:'],
+    ['Entrada (R$)', 'Quanto o cliente pagou na hora. Só o restante foi dividido nos boletos. Vazio = sem entrada.'],
+    ['Entrada paga com', 'Dinheiro, Pix, Débito ou Crédito. Vazio = Dinheiro.'],
     ['Parcelas', 'Em quantas vezes foi dividido. Vazio ou 1 = à vista.'],
     ['Parcelas pagas', 'Quantas o cliente já pagou. As demais entram no controle de parcelamentos.'],
     ['1º vencimento', 'Data de vencimento da primeira parcela. Formato dd/mm/aaaa.'],
@@ -5696,7 +5754,7 @@ function baixarModeloVendas() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet(linhas);
   ws['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 24 }, { wch: 12 }, { wch: 42 }, { wch: 7 }, { wch: 14 },
-                 { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 26 }];
+                 { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 26 }];
   XLSX.utils.book_append_sheet(wb, ws, 'Vendas');
   const wa = XLSX.utils.aoa_to_sheet(ajuda);
   wa['!cols'] = [{ wch: 16 }, { wch: 74 }];
@@ -5793,6 +5851,8 @@ async function lerPlanilhaVendas(input) {
           parcelas: (nParc > 1 && nParc <= 60) ? nParc : 0,
           parcelasPagas: Math.max(0, pagas),
           intervalo: INTERVALOS_BOLETO.includes(intervaloCol) ? intervaloCol : 0,
+          entrada: Math.max(0, vaNum(chave(l, 'Entrada (R$)', 'Entrada'))),
+          entradaForma: String(chave(l, 'Entrada paga com', 'Forma da entrada') || '').trim() || 'Dinheiro',
           primeiroVenc: venc1 || data,
           itens: []
         });
@@ -5899,8 +5959,10 @@ async function importarVendas(btn) {
         // Parcelamento: pagas entram como recebidas, o resto como "a gerar",
         // que é o que faz aparecer no controle e somar no a receber.
         let parcelamento = null;
+        // Entrada maior ou igual ao total não deixa nada para o boleto: ignora
+        const entradaImp = (v.entrada > 0 && v.entrada < v.total) ? Math.round(v.entrada * 100) / 100 : 0;
         if (v.parcelas > 1) {
-          const valores = vaDividir(v.total, v.parcelas);
+          const valores = vaDividir(v.total - entradaImp, v.parcelas);
           const inicioISO = v.primeiroVenc.toISOString().slice(0, 10);
           // Com intervalo na planilha, a cada N dias; sem, mensal (mesmo dia do mês)
           const datas = v.intervalo
@@ -5912,6 +5974,8 @@ async function importarVendas(btn) {
             criadoEm: v.data.toISOString(),
             historico: true,
             intervaloDias: v.intervalo || 'mensal',
+            ...(entradaImp > 0 ? { entrada: { valor: entradaImp, forma: v.entradaForma, pagoEm: v.data.toISOString() } } : {}),
+            valorBoletos: Math.round((v.total - entradaImp) * 100) / 100,
             pagas: Math.min(v.parcelasPagas, v.parcelas),
             parcelas: valores.map((valor, i) => (i < v.parcelasPagas)
               ? { n: i + 1, valor, vencimento: datas[i], status: 'RECEIVED',
@@ -6383,6 +6447,7 @@ function vendAbrir() {
   if (cat) cat.value = '';
   document.getElementById('vend-venc').value = somarDias(hojeISO(), 3);
   bolResetar('vend');
+  bolResetarEntrada('vend');
   const cfg = document.getElementById('vend-cfg');
   if (cfg && !cfg.innerHTML) cfg.innerHTML = htmlConfigBoleto('vend');
   resumoBoleto('vend');
@@ -6603,14 +6668,8 @@ function vendAtualizar() {
 
   // Opções de parcelamento acompanham o total
   const sel = document.getElementById('vend-parcelas');
-  if (sel) {
-    const escolhido = sel.value || '1';
-    sel.innerHTML = Array.from({ length: 10 }, (_, i) => {
-      const n = i + 1;
-      return `<option value="${n}"${String(n) === escolhido ? ' selected' : ''}>${n === 1 ? 'À vista' : n + 'x'} de ${fmt(total / n)}</option>`;
-    }).join('');
-  }
-  if (vendFormaPag === 'Boleto') vendPrevia();
+  if (sel) bolOpcoesParcelas(sel, bolRestante('vend', total), 10);
+  if (vendFormaPag === 'Boleto') vendPrevia(total);
 
   // No modo cadastrado é preciso escolher alguém; no avulso, não
   const semCliente = vendModo === 'cadastrado' && !vendCliente;
@@ -6624,15 +6683,17 @@ function vendAtualizar() {
                   : `Fechar pedido · ${fmt(total)}`;
 }
 
-function vendPrevia() {
+function vendPrevia(total) {
   const n = bolQtd('vend');
   bolSincronizarLista('vend', n);
   const alvo = document.getElementById('vend-previa');
   if (!alvo) return;
+  if (total === undefined) total = Math.max(vendSubtotal() - (parseFloat(document.getElementById('vend-desconto').value) || 0), 0);
   const datas = bolVencimentos('vend', n);
-  const erro = bolErroDatas(datas, true);
+  const erro = bolErroEntrada('vend', total) || bolErroDatas(datas, true);
   if (erro) { alvo.innerHTML = `<div class="bol-aviso">⚠️ ${erro}</div>`; return; }
   alvo.innerHTML = `<div style="font-size:.76rem; color:var(--text-muted); line-height:1.6">
+    ${bolTextoEntrada('vend')}${n}x no boleto = ${fmt(bolRestante('vend', total))}<br>
     Vencimentos (${bolDescricaoIntervalo('vend')}): ${datas.map(dataBR).join(' · ')}<br>
     <strong>Todos os boletos são gerados agora.</strong></div>`;
 }
@@ -6644,6 +6705,7 @@ function vendLimpar() {
   const nomeAv = document.getElementById('vend-cli-nome');
   if (nomeAv) nomeAv.value = '';
   document.getElementById('vend-desconto').value = 0;
+  bolResetarEntrada('vend');
   document.getElementById('vend-obs').value = '';
   document.getElementById('vend-busca').value = '';
   document.getElementById('vend-cli-busca').value = '';
@@ -6738,8 +6800,11 @@ async function vendGerarPDF() {
     const n = bolQtd('vend');
     fy += 2;
     doc.setFontSize(9.5).setFont(undefined, 'normal').setTextColor(70);
-    doc.text(n > 1 ? `Condição: boleto em ${n}x de ${fmt(total / n)} (${bolDescricaoIntervalo('vend')})`
-                   : 'Condição: boleto à vista', 14, fy);
+    const entradaPdf = bolEntrada('vend');
+    const restPdf = Math.max(total - entradaPdf.valor, 0);
+    const txtEntrada = entradaPdf.valor > 0 ? `Entrada de ${fmt(entradaPdf.valor)} (${entradaPdf.forma}) + ` : '';
+    doc.text('Condição: ' + txtEntrada + (n > 1 ? `boleto em ${n}x de ${fmt(restPdf / n)} (${bolDescricaoIntervalo('vend')})`
+                                 : `boleto à vista de ${fmt(restPdf)}`), 14, fy);
     fy += 6;
     const datasBol = bolVencimentos('vend', n);
     if (datasBol && !bolErroDatas(datasBol, false)) {
@@ -6788,21 +6853,21 @@ async function vendFinalizar() {
 
   // Datas dos boletos: conferidas ANTES de gravar o pedido, senão ele nasceria
   // aguardando pagamento sem nenhum boleto emitido.
-  let vencimentosBoleto = null;
-  if (noBoleto) {
-    vencimentosBoleto = bolVencimentos('vend', bolQtd('vend'));
-    const erroDatas = bolErroDatas(vencimentosBoleto, true);
-    if (erroDatas) return toast('⚠️ ' + erroDatas);
-  }
-
-  const endereco = document.getElementById('vend-endereco').value.trim();
-  if (!endereco) return toast('⚠️ Informe o endereço de entrega.');
-
   const sub = vendSubtotal();
   let desc = parseFloat(document.getElementById('vend-desconto').value) || 0;
   if (desc < 0) desc = 0;
   if (desc > sub) desc = sub;
   const total = sub - desc;
+
+  let vencimentosBoleto = null;
+  if (noBoleto) {
+    vencimentosBoleto = bolVencimentos('vend', bolQtd('vend'));
+    const erroDatas = bolErroEntrada('vend', total) || bolErroDatas(vencimentosBoleto, true);
+    if (erroDatas) return toast('⚠️ ' + erroDatas);
+  }
+
+  const endereco = document.getElementById('vend-endereco').value.trim();
+  if (!endereco) return toast('⚠️ Informe o endereço de entrega.');
 
   const btn = document.getElementById('vend-finalizar');
   const txt = btn.textContent;
@@ -6845,6 +6910,7 @@ async function vendFinalizar() {
           primeiroVencimento: vencimentosBoleto[0],
           intervaloDias: bolIntervaloGravar('vend'),
           vencimentos: vencimentosBoleto,
+          entrada: bolEntrada('vend'),
           configBoleto: lerConfigBoleto('vend'),
           token
         })
@@ -6852,7 +6918,9 @@ async function vendFinalizar() {
       const corpo = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(corpo.erro || 'erro ' + r.status);
 
-      toast(`✅ Pedido ${codigo} fechado — ${corpo.emitidos || 0} boleto(s) gerado(s).`);
+      const entradaV = bolEntrada('vend').valor;
+      toast(`✅ Pedido ${codigo} fechado — ${corpo.emitidos || 0} boleto(s) gerado(s)` +
+            (entradaV > 0 ? ` + entrada de ${fmt(entradaV)}.` : '.'));
       if (corpo.linkBoleto && confirm('Abrir o boleto da 1ª parcela para enviar ao cliente?')) {
         window.open(corpo.linkBoleto, '_blank');
       }
@@ -7302,14 +7370,8 @@ function pdvAtualizar() {
 
   // As opções de parcelamento acompanham o total da venda
   const selP = document.getElementById('pdv-parcelas');
-  if (selP) {
-    const escolhido = selP.value || '1';
-    selP.innerHTML = Array.from({ length: 10 }, (_, i) => {
-      const n = i + 1;
-      return `<option value="${n}"${String(n) === escolhido ? ' selected' : ''}>${n === 1 ? 'À vista' : n + 'x'} de ${fmt(total / n)}</option>`;
-    }).join('');
-  }
-  if (pdvFormaPag === 'Boleto') pdvPrevia();
+  if (selP) bolOpcoesParcelas(selP, bolRestante('pdv', total), 10);
+  if (pdvFormaPag === 'Boleto') pdvPrevia(total);
 
   document.getElementById('pdv-finalizar').disabled = (nItens === 0);
   document.getElementById('pdv-finalizar').textContent = nItens ? `Finalizar venda · ${fmt(total)}` : 'Finalizar venda';
@@ -7330,8 +7392,9 @@ function pdvAtualizar() {
 async function pdvFinalizarBoleto(codigo, cliente, cpfCnpj, sub, desc, total, btn) {
   const api = normalizarApi(config.api);
   const vencimentosBoleto = bolVencimentos('pdv', bolQtd('pdv'));
-  const erroDatas = bolErroDatas(vencimentosBoleto, true);
+  const erroDatas = bolErroEntrada('pdv', total) || bolErroDatas(vencimentosBoleto, true);
   if (erroDatas) throw new Error(erroDatas);
+  const entradaPdv = bolEntrada('pdv');
   const totalFalta = pdvItens.reduce((soma, i) => soma + pdvFaltando(i), 0);
   const itens = pdvItens.map(i => ({ id: i.id, nome: i.nome, preco: pdvPrecoItem(i), qtd: i.qtd, encomendado: pdvFaltando(i) , custoUnit: custoAgora(i.id) }));
 
@@ -7361,6 +7424,7 @@ async function pdvFinalizarBoleto(codigo, cliente, cpfCnpj, sub, desc, total, bt
       primeiroVencimento: vencimentosBoleto[0],
       intervaloDias: bolIntervaloGravar('pdv'),
       vencimentos: vencimentosBoleto,
+      entrada: entradaPdv,
       configBoleto: lerConfigBoleto('pdv'),
       token
     })
@@ -7374,7 +7438,8 @@ async function pdvFinalizarBoleto(codigo, cliente, cpfCnpj, sub, desc, total, bt
     await ref.update({ status: 'enviado', enviadoEm: firebase.firestore.FieldValue.serverTimestamp() }).catch(() => {});
   }
 
-  toast(`✅ Venda ${codigo} — ${corpo.emitidos || 0} boleto(s) gerado(s).` +
+  toast(`✅ Venda ${codigo} — ${corpo.emitidos || 0} boleto(s) gerado(s)` +
+        (entradaPdv.valor > 0 ? ` + entrada de ${fmt(entradaPdv.valor)}.` : '.') +
         (totalFalta ? ' Ficou em separação (encomenda).' : ''));
   if (corpo.linkBoleto && confirm('Abrir o boleto da 1ª parcela para entregar ao cliente?')) {
     window.open(corpo.linkBoleto, '_blank');
@@ -7385,20 +7450,23 @@ async function pdvFinalizarBoleto(codigo, cliente, cpfCnpj, sub, desc, total, bt
     const el = document.getElementById(id);
     if (el) el.value = (id === 'pdv-desconto') ? 0 : '';
   });
+  bolResetarEntrada('pdv');
   pdvModoCliente('avulso');
   pdvBuscar();
   pdvAtualizar();
 }
 
-function pdvPrevia() {
+function pdvPrevia(total) {
   const n = bolQtd('pdv');
   bolSincronizarLista('pdv', n);
   const alvo = document.getElementById('pdv-previa');
   if (!alvo) return;
+  if (total === undefined) total = Math.max(pdvSubtotal() - (parseFloat(document.getElementById('pdv-desconto').value) || 0), 0);
   const datas = bolVencimentos('pdv', n);
-  const erro = bolErroDatas(datas, true);
+  const erro = bolErroEntrada('pdv', total) || bolErroDatas(datas, true);
   if (erro) { alvo.innerHTML = `<div class="bol-aviso">⚠️ ${erro}</div>`; return; }
   alvo.innerHTML = `<div style="font-size:.76rem; color:var(--text-muted); line-height:1.6">
+    ${bolTextoEntrada('pdv')}${n}x no boleto = ${fmt(bolRestante('pdv', total))}<br>
     Vencimentos (${bolDescricaoIntervalo('pdv')}): ${datas.map(dataBR).join(' · ')}<br>
     <strong>Todos os boletos são gerados agora.</strong></div>`;
 }
@@ -7407,6 +7475,7 @@ function pdvLimpar() {
   if (pdvItens.length && !confirm('Cancelar esta venda e limpar os itens?')) return;
   pdvItens = [];
   document.getElementById('pdv-desconto').value = 0;
+  bolResetarEntrada('pdv');
   document.getElementById('pdv-recebido').value = '';
   document.getElementById('pdv-cliente').value = '';
   document.getElementById('pdv-cnpj').value = '';
@@ -7435,7 +7504,7 @@ async function pdvFinalizar() {
     if (!temNome) return toast('⚠️ Informe o nome do cliente ou selecione um cadastrado.');
     // Datas dos boletos conferidas antes de gravar: o pedido não pode nascer
     // aguardando pagamento sem boleto nenhum.
-    const erroDatas = bolErroDatas(bolVencimentos('pdv', bolQtd('pdv')), true);
+    const erroDatas = bolErroEntrada('pdv', total) || bolErroDatas(bolVencimentos('pdv', bolQtd('pdv')), true);
     if (erroDatas) return toast('⚠️ ' + erroDatas);
   }
 
@@ -7703,6 +7772,22 @@ function eventosRecebimento(lista) {
       return;
     }
 
+    // Entrada paga na hora: conta como recebida na data da venda (ou do
+    // registro), e é ela que carrega os itens do pedido — não a 1ª parcela.
+    const entrada = Number(plano.entrada?.valor) || 0;
+    const temEntrada = entrada > 0;
+    if (temEntrada) {
+      let dEnt = plano.entrada.pagoEm ? new Date(plano.entrada.pagoEm) : null;
+      if (!dEnt || isNaN(dEnt)) dEnt = dataVenda(p);
+      if (dEnt) {
+        eventos.push({
+          pedido: p, data: dEnt, valor: entrada,
+          custo: custoPedido * (totalPedido > 0 ? entrada / totalPedido : 0),
+          pago: true, primeiro: true, entrada: plano.entrada
+        });
+      }
+    }
+
     plano.parcelas.forEach((par, idx) => {
       if (par.status === 'CANCELADO') return;   // cancelada não é receita nem previsão
       const paga = par.status === 'CONFIRMED' || par.status === 'RECEIVED';
@@ -7720,7 +7805,7 @@ function eventosRecebimento(lista) {
         pedido: p, data: d, valor, custo: custoPedido * fatia, pago: paga,
         // Só a primeira parcela carrega os itens, senão a contagem de
         // unidades vendidas seria multiplicada pelo número de parcelas.
-        primeiro: idx === 0, parcela: par
+        primeiro: idx === 0 && !temEntrada, parcela: par
       });
     });
   });
@@ -7984,7 +8069,7 @@ function exportarDetalhamento() {
         Math.round(venda * 100) / 100,
         Math.round((venda - custo) * 100) / 100,
         venda > 0 ? Math.round((venda - custo) / venda * 1000) / 10 : '',
-        ev.parcela ? `${ev.parcela.n}/${p.parcelamento.total}` : 'À vista',
+        ev.entrada ? 'Entrada' : ev.parcela ? `${ev.parcela.n}/${p.parcelamento.total}` : 'À vista',
         ev.pago ? 'Recebido' : 'A receber'
       ]);
 
@@ -8153,7 +8238,8 @@ function renderDashboard() {
     porDia[ev.data.getDay()] += ev.valor;
 
     const met = p.pagamento?.metodo;
-    const nomeMet = ev.parcela ? 'Boleto parcelado'
+    const nomeMet = ev.entrada ? `Entrada (${ev.entrada.forma || 'dinheiro'})`
+                  : ev.parcela ? 'Boleto parcelado'
                   : met === 'PIX' ? 'Pix (online)' : met === 'CREDIT_CARD' ? 'Cartão (online)'
                   : met === 'BOLETO' ? 'Boleto' : met ? met : (p.origem === 'asaas' ? 'Online' : 'WhatsApp');
     porPagamento[nomeMet] = (porPagamento[nomeMet] || 0) + ev.valor;
@@ -8733,6 +8819,56 @@ function bolIntervaloGravar(pref) {
   return m === 'custom' ? 'personalizado' : (INTERVALOS_BOLETO.includes(Number(m)) ? Number(m) : 30);
 }
 
+/* ---------- Entrada + restante no boleto ----------
+ * O cliente paga uma parte na hora (dinheiro, Pix, cartão) e o resto sai nos
+ * boletos. A entrada fica gravada em "parcelamento.entrada" e os boletos são
+ * divididos só sobre o que sobrou.
+ */
+function bolEntrada(pref) {
+  let valor = parseFloat(document.getElementById(pref + '-entrada')?.value) || 0;
+  if (valor < 0) valor = 0;
+  valor = Math.round(valor * 100) / 100;
+  const forma = document.getElementById(pref + '-entrada-forma')?.value || 'Dinheiro';
+  return { valor, forma };
+}
+
+// Quanto vai para os boletos depois da entrada
+function bolRestante(pref, total) {
+  return Math.round((total - bolEntrada(pref).valor) * 100) / 100;
+}
+
+// Erro de entrada, ou '' se está ok. Entrada que cobre o total não é venda no
+// boleto: é venda na forma da entrada.
+function bolErroEntrada(pref, total) {
+  const e = bolEntrada(pref).valor;
+  if (e > 0 && total > 0 && e >= total) {
+    return 'A entrada cobre o total — registre a venda em ' + bolEntrada(pref).forma + ', sem boleto.';
+  }
+  return '';
+}
+
+function bolResetarEntrada(pref) {
+  const v = document.getElementById(pref + '-entrada');
+  if (v) v.value = 0;
+  const f = document.getElementById(pref + '-entrada-forma');
+  if (f) f.value = 'Dinheiro';
+}
+
+// Opções do select "Em quantas vezes" com o valor de cada boleto (sem a entrada)
+function bolOpcoesParcelas(sel, restante, max) {
+  const escolhido = sel.value || '1';
+  sel.innerHTML = Array.from({ length: max }, (_, i) => {
+    const n = i + 1;
+    return `<option value="${n}"${String(n) === escolhido ? ' selected' : ''}>${n === 1 ? 'À vista' : n + 'x'} de ${fmt(Math.max(restante, 0) / n)}</option>`;
+  }).join('');
+}
+
+// Linha da prévia sobre a entrada ('' se não tem)
+function bolTextoEntrada(pref) {
+  const e = bolEntrada(pref);
+  return e.valor > 0 ? `Entrada de <strong>${fmt(e.valor)}</strong> em ${e.forma}, recebida agora · ` : '';
+}
+
 // Texto curto para mostrar no PDF / na prévia
 function bolDescricaoIntervalo(pref) {
   const m = bolModo(pref);
@@ -8784,6 +8920,13 @@ function htmlParcelas(pedido, podeGerar) {
 
   return `
   <div class="parc-box">
+    ${plano.entrada?.valor > 0
+      ? `<div class="parc-li" style="background:var(--ok-bg)">
+           <span class="parc-n">💵</span>
+           <div class="parc-info"><div class="parc-venc">Entrada em ${plano.entrada.forma || 'dinheiro'}${plano.entrada.pagoEm ? ' · ' + dataBR(String(plano.entrada.pagoEm).slice(0, 10)) : ''}</div></div>
+           <span class="parc-val">${fmt(plano.entrada.valor)}</span>
+           <span class="parc-tag pt-pago">✅ Pago</span>
+         </div>` : ''}
     <div class="parc-cab">
       <span>📄 ${pagas} de ${plano.total} parcelas pagas</span>
       <div class="parc-prog"><span style="width:${pct}%"></span></div>
@@ -8818,6 +8961,8 @@ function htmlParcelas(pedido, podeGerar) {
 }
 
 /* ---------- Vendedor: aprovar via boleto ---------- */
+let mparcTotal = 0;   // total do pedido aberto no modal
+
 function abrirParcelamento(pedidoId) {
   const p = pedidos.find(x => x.id === pedidoId);
   if (!p) return;
@@ -8831,13 +8976,12 @@ function abrirParcelamento(pedidoId) {
   // Vencimento sugerido: daqui a 3 dias, a cada 30 dias
   document.getElementById('mparc-venc').value = somarDias(hojeISO(), 3);
   bolResetar('mparc');
+  bolResetarEntrada('mparc');
+  mparcTotal = Number(p.total || 0);
 
   const sel = document.getElementById('mparc-qtd');
-  sel.innerHTML = Array.from({ length: 10 }, (_, i) => {
-    const n = i + 1;
-    const v = (Number(p.total || 0) / n);
-    return `<option value="${n}">${n === 1 ? 'À vista' : n + 'x'} de ${fmt(v)}</option>`;
-  }).join('');
+  sel.value = '';
+  bolOpcoesParcelas(sel, mparcTotal, 10);
   const cfg = document.getElementById('mparc-cfg');
   if (cfg && !cfg.innerHTML) cfg.innerHTML = htmlConfigBoleto('mparc');
   resumoBoleto('mparc');
@@ -8852,13 +8996,16 @@ function fecharParcelamento() {
 // Mostra as datas de vencimento antes de confirmar, para o vendedor conferir
 function atualizarPreviaParcelas() {
   const n = bolQtd('mparc');
+  // O valor de cada boleto muda com a entrada
+  bolOpcoesParcelas(document.getElementById('mparc-qtd'), bolRestante('mparc', mparcTotal), 10);
   bolSincronizarLista('mparc', n);
   const alvo = document.getElementById('mparc-previa');
   const datas = bolVencimentos('mparc', n);
-  const erro = bolErroDatas(datas, true);
+  const erro = bolErroEntrada('mparc', mparcTotal) || bolErroDatas(datas, true);
   if (erro) { alvo.innerHTML = `<div class="bol-aviso">⚠️ ${erro}</div>`; return; }
   const linhas = datas.map((d, i) => `${i + 1}ª · ${dataBR(d)}`);
   alvo.innerHTML = `<div style="font-size:.78rem; color:var(--text-muted); line-height:1.7">
+    ${bolTextoEntrada('mparc')}${n}x no boleto = ${fmt(bolRestante('mparc', mparcTotal))}<br>
     Vencimentos (${bolDescricaoIntervalo('mparc')}): ${linhas.join(' · ')}<br>
     <strong>Todos os boletos são gerados agora</strong> — o cliente pode antecipar parcelas se quiser.</div>`;
 }
@@ -8867,8 +9014,9 @@ async function confirmarParcelamento(btn) {
   const pedidoId = document.getElementById('mparc-id').value;
   const parcelas = bolQtd('mparc');
   const vencimentos = bolVencimentos('mparc', parcelas);
-  const erroDatas = bolErroDatas(vencimentos, true);
+  const erroDatas = bolErroEntrada('mparc', mparcTotal) || bolErroDatas(vencimentos, true);
   if (erroDatas) return toast('⚠️ ' + erroDatas);
+  const entrada = bolEntrada('mparc');
   const primeiroVencimento = vencimentos[0];
   const txt = btn.textContent;
   btn.disabled = true; btn.textContent = '⏳ Gerando boleto...';
@@ -8880,7 +9028,7 @@ async function confirmarParcelamento(btn) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pedidoId, parcelas, primeiroVencimento, token,
                              intervaloDias: bolIntervaloGravar('mparc'),
-                             vencimentos,
+                             vencimentos, entrada,
                              configBoleto: lerConfigBoleto('mparc') })
     });
     const corpo = await r.json().catch(() => ({}));
@@ -8888,7 +9036,7 @@ async function confirmarParcelamento(btn) {
 
     fecharParcelamento();
     const falharam = (corpo.total || parcelas) - (corpo.emitidos || 0);
-    toast(`✅ Parcelamento em ${parcelas}x — ${corpo.emitidos || 0} boleto(s) gerado(s).` +
+    toast(`✅ ${entrada.valor > 0 ? 'Entrada de ' + fmt(entrada.valor) + ' + ' : ''}parcelamento em ${parcelas}x — ${corpo.emitidos || 0} boleto(s) gerado(s).` +
           (falharam > 0 ? ` ${falharam} falhou(aram); gere pela lista de parcelas.` : ''));
     if (corpo.linkBoleto && confirm('Abrir o boleto da 1ª parcela para enviar ao cliente?')) {
       window.open(corpo.linkBoleto, '_blank');
@@ -9374,6 +9522,13 @@ async function exportarPedidoPDF(id) {
   const linhaAltura = 18;
   const fotos = await fotosDosItens(itens);
 
+  // Desconto dado na venda: gravado no pedido, não nos itens. O subtotal é a
+  // soma dos itens como aparecem na tabela, para o cliente conferir a conta.
+  const descontoPedido = Math.round((Number(p.desconto) || 0) * 100) / 100;
+  const temDesconto = descontoPedido > 0;
+  const subtotalPedido = Math.round(
+    itens.reduce((sm, i) => sm + (Number(i.preco) || 0) * (Number(i.qtd) || 0), 0) * 100) / 100;
+
   doc.autoTable({
     startY: y,
     head: [['', 'Produto', 'Qtd', 'Preço un.', 'Subtotal']],
@@ -9384,8 +9539,23 @@ async function exportarPedidoPDF(id) {
       0: { cellWidth: imgSize + 6 },
       2: { halign: 'center' }, 3: { halign: 'right' }, 4: { halign: 'right' }
     },
-    foot: [['', '', '', 'TOTAL', fmt(p.total || 0)]],
+    // Com desconto, o cliente precisa ver os três números: quanto deu a soma
+    // dos itens, quanto foi abatido e quanto ficou. Sem desconto, só o total.
+    foot: temDesconto
+      ? [['', '', '', 'Valor do pedido', fmt(subtotalPedido)],
+         ['', '', '', 'Desconto', '- ' + fmt(descontoPedido)],
+         ['', '', '', 'VALOR TOTAL', fmt(p.total || 0)]]
+      : [['', '', '', 'TOTAL', fmt(p.total || 0)]],
     footStyles: { fillColor: [240, 244, 248], textColor: [13, 43, 107], fontStyle: 'bold', fontSize: 10.5, halign: 'right' },
+    didParseCell: (data) => {
+      // As duas primeiras linhas do rodapé (valor e desconto) ficam discretas;
+      // só o total fica em destaque.
+      if (data.section === 'foot' && temDesconto && data.row.index < 2) {
+        data.cell.styles.fontStyle = 'normal';
+        data.cell.styles.fontSize = 9.5;
+        data.cell.styles.textColor = data.row.index === 1 ? [180, 35, 24] : [90, 100, 110];
+      }
+    },
     didDrawCell: (data) => {
       if (data.section === 'body' && data.column.index === 0) {
         const img = fotos[data.row.index];
@@ -9409,10 +9579,16 @@ async function exportarPedidoPDF(id) {
     doc.autoTable({
       startY: doc.lastAutoTable.finalY + 16,
       head: [['Parcela', 'Vencimento', 'Valor', 'Situação']],
-      body: (plano.parcelas || []).map(par => [
-        `${par.n}/${plano.total}`, dataBR(par.vencimento), fmt(par.valor),
-        situacaoParcela(par).txt.replace(/^\W+\s*/, '')
-      ]),
+      body: [
+        ...(plano.entrada?.valor > 0
+          ? [['Entrada', plano.entrada.pagoEm ? dataBR(String(plano.entrada.pagoEm).slice(0, 10)) : '—',
+              fmt(plano.entrada.valor), 'Pago (' + (plano.entrada.forma || 'dinheiro') + ')']]
+          : []),
+        ...(plano.parcelas || []).map(par => [
+          `${par.n}/${plano.total}`, dataBR(par.vencimento), fmt(par.valor),
+          situacaoParcela(par).txt.replace(/^\W+\s*/, '')
+        ])
+      ],
       headStyles: { fillColor: [13, 43, 107], fontSize: 9.5 },
       bodyStyles: { fontSize: 9.5 },
       columnStyles: { 0: { cellWidth: 22, halign: 'center' }, 2: { halign: 'right' } },
